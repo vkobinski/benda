@@ -1,5 +1,9 @@
+use parser::{generate, run::{self, run}};
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
+
+use crate::parser::{generate::Parser, scanner::Scanner};
+
+mod parser;
 
 fn main() -> PyResult<()> {
 
@@ -20,8 +24,19 @@ fn main() -> PyResult<()> {
 
         let ast: String = fun.call0(py).unwrap().extract(py).unwrap();
 
-        println!("AST gerada pelo Python: \n{}", ast);
+        println!("AST gerada pelo Python: \n{}\n\n", ast);
+
+        let mut scanner = Scanner::new(ast);
+
+        scanner.scan_tokens();
+        let tokens = scanner.tokens;
+
+        let mut parser = Parser::new(tokens);
+        parser.parse();
 
     });
+
+    //parser::run::run();
+
     Ok(())
 }
