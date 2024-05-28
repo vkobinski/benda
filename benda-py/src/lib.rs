@@ -1,10 +1,12 @@
 use std::borrow::Borrow;
 
+use parser::Parser;
 use pyo3::{ conversion::FromPyObjectBound, prelude::*, types::{ PyFunction, PyTuple } };
 use python_ast::{parse, CodeGen, Name};
 use types::u24::u24;
 mod types;
 mod parser;
+mod bend;
 
 #[pyfunction]
 fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
@@ -26,13 +28,12 @@ fn bjit(fun: Bound<PyFunction>) -> PyResult<PyObject> {
     let code = std::fs::read_to_string(filename.to_string()).unwrap();
     let ast = parse(&code, "").unwrap();
 
-    for stmt in ast.raw.body {
+    for stmt in &ast.raw.body {
 
-        match stmt.statement {
+        match &stmt.statement {
             python_ast::StatementType::FunctionDef(fun_def) => {
                 if fun_def.name == name.to_string() {
-                    println!("{:?}", fun_def.body);
-
+                    Parser::parse(fun_def.body.clone());
                 }
             },
             _ => {},
