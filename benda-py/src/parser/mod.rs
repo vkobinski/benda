@@ -1,3 +1,5 @@
+use core::panic;
+
 use bend::fun::{ Book, Definition, Name, Pattern, Rule, Term };
 use python_ast::Statement;
 
@@ -15,12 +17,12 @@ impl Parser {
 
         for stmt in statements {
             match stmt.statement {
-                python_ast::StatementType::AsyncFunctionDef(_) => todo!(),
                 python_ast::StatementType::Assign(assign) => {
+                    // TODO: Implement tuple assignment
                     let target = &assign.targets.get(0).unwrap().id;
                     let value: u32 = match assign.value {
                         python_ast::ExprType::Constant(c) => c.to_string().parse().unwrap(),
-                        _ => { 0 }
+                        _ => { panic!("Could not get assignment value.") }
                     };
 
                     let rule = Rule {
@@ -34,7 +36,7 @@ impl Parser {
                     let expr_type = *call.func;
 
                     match expr_type {
-                        python_ast::ExprType::BoolOp(_) => todo!(),
+                        python_ast::ExprType::BoolOp(_) => {},
                         python_ast::ExprType::NamedExpr(_) => todo!(),
                         python_ast::ExprType::BinOp(_) => todo!(),
                         python_ast::ExprType::UnaryOp(_) => todo!(),
