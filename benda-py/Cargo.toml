@@ -11,3 +11,4 @@ crate-type = ["cdylib"]
 [dependencies]
 bend-lang = "0.2.18"
 pyo3 = "0.21.2"
+python-ast = { git = "https://github.com/vkobinski/python-ast-rs.git", branch = "benda" }

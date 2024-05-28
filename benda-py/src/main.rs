@@ -1,7 +1,9 @@
-use parser::{generate, run::{self, run}};
-use pyo3::prelude::*;
+use std::{any::Any, borrow::Borrow, path::Path};
 
-use crate::parser::{generate::Parser, scanner::Scanner};
+use parser::{generate, run::{self, run}};
+use pyo3::{ffi::PyCodeObject, prelude::*, types::{PyCode, PyFunction}};
+
+use python_ast::parse;
 
 mod parser;
 
@@ -11,28 +13,46 @@ fn main() -> PyResult<()> {
 
     let code = std::fs::read_to_string("main.py").unwrap();
 
+    let ast = parse(&code, "main.py").unwrap();
+
+    println!("AST : {:?}", ast);
+
     Python::with_gil(|py| {
-        let fun: Py<PyAny> = PyModule::from_code_bound(
+        let fun = PyModule::from_code_bound(
             py,
             &code,
             "main.py",
             "example"
         ).unwrap()
         .getattr("print_ast")
-        .unwrap()
-        .into();
+        .unwrap();
+    
 
-        let ast: String = fun.call0(py).unwrap().extract(py).unwrap();
+        let module = fun.downcast::<PyFunction>();
 
-        println!("AST gerada pelo Python: \n{}\n\n", ast);
+        match module {
+            Ok(m) => {
+                match m.downcast::<PyCode>() {
+                    Ok(c) => {
+                        println!("{:?}", c);
 
-        let mut scanner = Scanner::new(ast);
+                    },
+                    Err(_) => todo!(),
+                };
+            },
+            _ => panic!("O"),
+        };
 
-        scanner.scan_tokens();
-        let tokens = scanner.tokens;
 
-        let mut parser = Parser::new(tokens);
-        parser.parse();
+        //println!("AST gerada pelo Python: \n{}\n\n", ast);
+
+        //let mut scanner = Scanner::new(ast);
+
+        //scanner.scan_tokens();
+        //let tokens = scanner.tokens;
+
+        //let mut parser = Parser::new(tokens);
+        //parser.parse();
 
     });
 
