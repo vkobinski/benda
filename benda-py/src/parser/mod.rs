@@ -167,7 +167,7 @@ impl Parser {
 
     pub fn parse(&mut self) {
         for stmt in self.statements.clone() {
-            // TODO: Statements can have another statments inside of them
+            // TODO(#3): Statements can have another statments inside of them
             // Make parsing recursive
 
             let rule = self.parse_part(stmt);
