@@ -621,7 +621,7 @@ dependencies = [
 [[package]]
 name = "python-ast"
 version = "0.3.1"
-source = "git+https://github.com/vkobinski/python-ast-rs.git?branch=benda#d05c72f3dba29336cc0e6debf49c563ccdbf0a70"
+source = "git+https://github.com/vkobinski/python-ast-rs.git?branch=benda#0e5ad916f0670cc08c9ac3266a7fc15051995625"
 dependencies = [
  "encoding",
  "env_logger",

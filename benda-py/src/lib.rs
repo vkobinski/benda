@@ -6,7 +6,7 @@ use python_ast::{parse, CodeGen, Name};
 use types::u24::u24;
 mod types;
 mod parser;
-mod bend;
+mod benda_ffi;
 
 #[pyfunction]
 fn sum_as_string(a: usize, b: usize) -> PyResult<String> {

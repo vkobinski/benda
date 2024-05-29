@@ -1,61 +1,46 @@
+mod parser;
 
-use pyo3::{prelude::*, types::{PyCode, PyFunction}};
+use std::path::Path;
+
+use bend::{diagnostics::DiagnosticsConfig, CompileOpts};
+use parser::Parser;
+use pyo3::{ prelude::*, types::{ PyCode, PyFunction } };
 
 use python_ast::parse;
 
-mod parser;
-mod bend;
+mod benda_ffi;
 
 fn main() -> PyResult<()> {
 
-    pyo3::prepare_freethreaded_python();
+    let mut book = bend::load_file_to_book(Path::new("main.bend")).unwrap();
 
-    let code = std::fs::read_to_string("main.py").unwrap();
+    println!("{}", book.display_pretty());
 
-    let ast = parse(&code, "main.py").unwrap();
+    let opts = CompileOpts::default();
+    let diagnostics_cfg = DiagnosticsConfig::default();
+    let args = None;
 
-    println!("AST : {:?}", ast);
+    let new_book = bend::compile_book(&mut book, opts, diagnostics_cfg, args);
 
-    Python::with_gil(|py| {
-        let fun = PyModule::from_code_bound(
-            py,
-            &code,
-            "main.py",
-            "example"
-        ).unwrap()
-        .getattr("print_ast")
-        .unwrap();
-    
+    println!("NEW BOOK \n{}", book.display_pretty());
 
-        let module = fun.downcast::<PyFunction>();
+    let name = String::from("sum_nums");
+    let filename = String::from("main.py");
 
-        match module {
-            Ok(m) => {
-                match m.downcast::<PyCode>() {
-                    Ok(c) => {
-                        println!("{:?}", c);
+    let code = std::fs::read_to_string(filename.to_string()).unwrap();
+    let ast = parse(&code, "").unwrap();
 
-                    },
-                    Err(_) => todo!(),
-                };
-            },
-            _ => panic!("O"),
-        };
-
-
-        //println!("AST gerada pelo Python: \n{}\n\n", ast);
-
-        //let mut scanner = Scanner::new(ast);
-
-        //scanner.scan_tokens();
-        //let tokens = scanner.tokens;
-
-        //let mut parser = Parser::new(tokens);
-        //parser.parse();
-
-    });
-
-    //parser::run::run();
+    for stmt in &ast.raw.body {
+        match &stmt.statement {
+            python_ast::StatementType::FunctionDef(fun_def) => {
+                if fun_def.name == name.to_string() {
+                    let mut parser = Parser::new(fun_def.body.clone());
+                    parser.parse();
+                }
+            }
+            _ => {}
+        }
+    }
 
     Ok(())
 }

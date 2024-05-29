@@ -1,7 +1,11 @@
 def main:
-  sum = add(2, 3)
+  sum = add(1)
   return sum
   
-def add(x, y):
-  return x + y
+def add(x):
+  a = 10
+  b = 20
+  c = (a+b) * x
+  d = (c+a) + 2
+  return d
   
