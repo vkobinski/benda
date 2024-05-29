@@ -33,7 +33,8 @@ fn bjit(fun: Bound<PyFunction>) -> PyResult<PyObject> {
         match &stmt.statement {
             python_ast::StatementType::FunctionDef(fun_def) => {
                 if fun_def.name == name.to_string() {
-                    Parser::parse(fun_def.body.clone());
+                    let mut parser = Parser::new(fun_def.body.clone());
+                    parser.parse();
                 }
             },
             _ => {},

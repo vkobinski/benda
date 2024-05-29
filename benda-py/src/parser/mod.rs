@@ -6,7 +6,6 @@ use python_ast::{ Assign, BinOp, BinOps, ExprType, Statement };
 use crate::bend::run;
 
 fn parse_expr_type(expr: Box<ExprType>) -> Option<Term> {
-
     match *expr {
         ExprType::BoolOp(_) => todo!(),
         ExprType::NamedExpr(_) => todo!(),
@@ -15,31 +14,31 @@ fn parse_expr_type(expr: Box<ExprType>) -> Option<Term> {
         ExprType::Await(_) => todo!(),
         ExprType::Compare(_) => todo!(),
         ExprType::Call(_) => todo!(),
-        ExprType::Constant(_) => todo!(),
+        ExprType::Constant(c) => Some(Term::Nat { val:c.0.unwrap().to_string().parse().unwrap() }),
         ExprType::Attribute(_) => todo!(),
-        ExprType::Name(_) => todo!(),
+        ExprType::Name(n) => { Some(Term::var_or_era(Some(Name::new(n.id)))) }
         ExprType::List(_) => todo!(),
         ExprType::NoneType(_) => todo!(),
         ExprType::Unimplemented(_) => todo!(),
         ExprType::Unknown => todo!(),
-    };
-
+    }
 }
 
 fn parse_add(target: &String, bin: BinOp) -> Option<Rule> {
-    let left = bin.left;
-    let right = bin.right;
+    // TODO: Treat case where expr type returns None
+    let left = parse_expr_type(bin.left).unwrap();
+    let right = parse_expr_type(bin.right).unwrap();
 
     Some(Rule {
         pats: vec![Pattern::Var(Some(Name::new(target)))],
-        body: Term::add_num(arg, val),
+        body: Term::Oper { opr: bend::fun::Op::ADD, fst: Box::new(left), snd: Box::new(right) },
     })
 }
 
 fn parse_assign(assign: &Assign) -> Option<Rule> {
-    // TODO(#1): Implement tuple assignment
+    // TODO: Implement tuple assignment
     let target = &assign.targets.get(0).unwrap().id;
-    let value: Rule = match assign.value {
+    let value: Rule = match &assign.value {
         python_ast::ExprType::Constant(c) => {
             Rule {
                 pats: vec![Pattern::Var(Some(Name::new(target)))],
@@ -47,15 +46,9 @@ fn parse_assign(assign: &Assign) -> Option<Rule> {
             }
         }
         python_ast::ExprType::BinOp(bin) => {
-            let left = bin.left;
-            let right = bin.right;
-
             match bin.op {
                 BinOps::Add => {
-                    Rule {
-                        pats: vec![Pattern::Var(Some(Name::new(target)))],
-                        body: Term::add_num(arg, val),
-                    }
+                    parse_add(target, bin.clone())?
                 }
                 BinOps::Sub => todo!(),
                 BinOps::Mult => todo!(),
@@ -75,12 +68,7 @@ fn parse_assign(assign: &Assign) -> Option<Rule> {
         _ => { panic!("Could not get assignment value.") }
     };
 
-    let rule = Rule {
-        pats: vec![Pattern::Var(Some(Name::new(target)))],
-        body: Term::Nat { val: value },
-    };
-
-    Some(rule)
+    Some(value)
 }
 
 pub struct Parser {
@@ -101,51 +89,16 @@ impl Parser {
     fn parse_part(&mut self, stmt: Statement) -> Option<Rule> {
         match stmt.statement {
             python_ast::StatementType::Assign(assign) => {
-                // TODO(#2): Implement tuple assignment
-                let target = &assign.targets.get(0).unwrap().id;
-                let value: Rule = match assign.value {
-                    python_ast::ExprType::Constant(c) => {
-                        Rule {
-                            pats: vec![Pattern::Var(Some(Name::new(target)))],
-                            body: Term::Nat { val: c.to_string().parse().unwrap() },
-                        }
-                    }
-                    python_ast::ExprType::BinOp(bin) => {
-                        let left = bin.left;
-                        let right = bin.right;
+                // TODO: Implement tuple assignment
 
-                        match bin.op {
-                            BinOps::Add => { Rule }
-                            BinOps::Sub => todo!(),
-                            BinOps::Mult => todo!(),
-                            BinOps::Div => todo!(),
-                            BinOps::FloorDiv => todo!(),
-                            BinOps::Mod => todo!(),
-                            BinOps::Pow => todo!(),
-                            BinOps::LShift => todo!(),
-                            BinOps::RShift => todo!(),
-                            BinOps::BitOr => todo!(),
-                            BinOps::BitXor => todo!(),
-                            BinOps::BitAnd => todo!(),
-                            BinOps::MatMult => todo!(),
-                            BinOps::Unknown => todo!(),
-                        };
-                    }
-                    _ => { panic!("Could not get assignment value.") }
-                };
-
-                let rule = Rule {
-                    pats: vec![Pattern::Var(Some(Name::new(target)))],
-                    body: Term::Nat { val: value },
-                };
-
-                Some(rule)
+                let value = parse_assign(&assign).unwrap();
+                Some(value)
             }
             python_ast::StatementType::Call(call) => {
                 let expr_type = *call.func;
 
                 match expr_type {
-                    python_ast::ExprType::BoolOp(_) => {}
+                    python_ast::ExprType::BoolOp(_) => todo!(),
                     python_ast::ExprType::NamedExpr(_) => todo!(),
                     python_ast::ExprType::BinOp(_) => todo!(),
                     python_ast::ExprType::UnaryOp(_) => todo!(),
@@ -167,7 +120,7 @@ impl Parser {
 
     pub fn parse(&mut self) {
         for stmt in self.statements.clone() {
-            // TODO(#3): Statements can have another statments inside of them
+            // TODO: Statements can have another statments inside of them
             // Make parsing recursive
 
             let rule = self.parse_part(stmt);

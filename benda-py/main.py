@@ -1,6 +1,5 @@
-import benda
-import ast, inspect
 from benda import bjit
+import benda
 
 def test():
     number = benda.u24(3)
@@ -8,9 +7,16 @@ def test():
     return number
 
 @bjit
+#def sum_nums():
+#    a = 10
+#    b = 20
+#    c = (a + b) * 4
+#    d = (c + b) / a
+#    return d
+
 def sum_nums():
     a = 10
     b = 20
-    c = (a + b) * 4
-    d = (c + b) / a
+    c = (a + b)
+    d = (c + b)
     return d
