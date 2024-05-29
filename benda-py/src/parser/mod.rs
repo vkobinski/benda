@@ -101,7 +101,7 @@ impl Parser {
     fn parse_part(&mut self, stmt: Statement) -> Option<Rule> {
         match stmt.statement {
             python_ast::StatementType::Assign(assign) => {
-                // TODO: Implement tuple assignment
+                // TODO(#2): Implement tuple assignment
                 let target = &assign.targets.get(0).unwrap().id;
                 let value: Rule = match assign.value {
                     python_ast::ExprType::Constant(c) => {
