@@ -9,9 +9,9 @@ def test():
 @bjit
 def sum_nums():
     a = 5
-    b = 20
-    c = (a + b) + 4
-    d = (c + b) + a
+    b = 2
+    c = (a + b) * 4
+    d = (c + b) / 2
     return d
 
 print(sum_nums)

@@ -1,11 +1,9 @@
 def main:
-  sum = add(1)
+  sum = add(5,2)
   return sum
   
-def add(x):
-  a = 10
-  b = 20
-  c = (a+b) * x
-  d = (c+a) + 2
+def add(a,b):
+  c = (a + b) * 4
+  d = (c + b) / 2
   return d
-  
+

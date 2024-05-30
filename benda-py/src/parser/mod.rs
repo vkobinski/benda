@@ -1,6 +1,6 @@
 use core::panic;
 
-use bend::{ fun::{ Book, Definition, Name, Pattern, Rule, Term }, imp::{ self, Expr, Stmt } };
+use bend::{ fun::{ Book, Name, Op }, hvm::ast::OP_XOR, imp::{ self, Expr, Stmt } };
 use python_ast::{ Assign, BinOp, BinOps, ExprType, Statement };
 
 use crate::benda_ffi::run;
@@ -24,21 +24,7 @@ impl Parser {
         match *expr {
             ExprType::BoolOp(_) => todo!(),
             ExprType::NamedExpr(_) => todo!(),
-            ExprType::BinOp(bin_op) => {
-                let left = self.parse_expr_type(bin_op.left);
-                let right = self.parse_expr_type(bin_op.right);
-
-                match bin_op.op {
-                    BinOps::Add => {
-                        Some(Expr::Bin {
-                            op: bend::fun::Op::ADD,
-                            lhs: Box::new(left.unwrap()),
-                            rhs: Box::new(right.unwrap()),
-                        })
-                    }
-                    _ => panic!(),
-                }
-            }
+            ExprType::BinOp(bin_op) => { self.parse_bin_op(bin_op) }
             ExprType::UnaryOp(_) => todo!(),
             ExprType::Await(_) => todo!(),
             ExprType::Compare(_) => todo!(),
@@ -56,13 +42,30 @@ impl Parser {
         }
     }
 
-    fn parse_add(&self, bin: BinOp) -> Option<Expr> {
+    fn parse_bin_op(&self, bin: BinOp) -> Option<Expr> {
         // TODO: Treat case where expr type returns None
         let left = self.parse_expr_type(bin.left).unwrap();
         let right = self.parse_expr_type(bin.right).unwrap();
 
+        let op: Op = match bin.op {
+            BinOps::Add => Op::ADD,
+            BinOps::Sub => Op::SUB,
+            BinOps::Mult => Op::MUL,
+            BinOps::Div => Op::DIV,
+            BinOps::FloorDiv => Op::DIV,
+            BinOps::Mod => todo!(),
+            BinOps::Pow => Op::POW,
+            BinOps::LShift => Op::SHL,
+            BinOps::RShift => Op::SHR,
+            BinOps::BitOr => Op::OR,
+            BinOps::BitXor => Op::XOR,
+            BinOps::BitAnd => Op::AND,
+            BinOps::MatMult => todo!(),
+            BinOps::Unknown => panic!("BinOp not known."),
+        };
+
         let operation = Expr::Bin {
-            op: bend::fun::Op::ADD,
+            op,
             lhs: Box::new(left),
             rhs: Box::new(right),
         };
@@ -74,34 +77,15 @@ impl Parser {
         // TODO: Implement tuple assignment
         let target = &assign.targets.get(0).unwrap().id;
 
-        let value = match &assign.value {
+        match &assign.value {
             python_ast::ExprType::Constant(c) => {
-                Expr::Num {
+                Some(Expr::Num {
                     val: bend::fun::Num::U24(c.clone().0.unwrap().to_string().parse().unwrap()),
-                }
+                })
             }
-            python_ast::ExprType::BinOp(bin) => {
-                match bin.op {
-                    BinOps::Add => { self.parse_add(bin.clone())? }
-                    BinOps::Sub => todo!(),
-                    BinOps::Mult => todo!(),
-                    BinOps::Div => todo!(),
-                    BinOps::FloorDiv => todo!(),
-                    BinOps::Mod => todo!(),
-                    BinOps::Pow => todo!(),
-                    BinOps::LShift => todo!(),
-                    BinOps::RShift => todo!(),
-                    BinOps::BitOr => todo!(),
-                    BinOps::BitXor => todo!(),
-                    BinOps::BitAnd => todo!(),
-                    BinOps::MatMult => todo!(),
-                    BinOps::Unknown => todo!(),
-                }
-            }
+            python_ast::ExprType::BinOp(bin) => { self.parse_bin_op(bin.clone()) }
             _ => { panic!("Could not get assignment value.") }
-        };
-
-        Some(value)
+        }
     }
 
     fn parse_part(&mut self, stmt: Statement) -> Option<Stmt> {
@@ -187,7 +171,6 @@ impl Parser {
         self.book.entrypoint = None;
 
         println!("BEND:\n {}", self.book.display_pretty());
-
 
         let return_val = run(&self.book);
 
