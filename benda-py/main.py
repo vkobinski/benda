@@ -8,10 +8,10 @@ def test():
 
 @bjit
 def sum_nums():
-    a = 10
+    a = 5
     b = 20
-    c = (a + b) * 4
-    d = (c + b) / a
+    c = (a + b) + 4
+    d = (c + b) + a
     return d
 
 print(sum_nums)

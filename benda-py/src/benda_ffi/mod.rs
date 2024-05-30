@@ -8,5 +8,5 @@ pub fn run(book: &Book ) -> Option<(Term, String, Diagnostics)> {
     let diagnostics_cfg = DiagnosticsConfig::default();
     let args = None;
 
-    bend::run_book(book.clone(), run_opts, compile_opts, diagnostics_cfg, args, "run-cu").unwrap()
+    bend::run_book(book.clone(), run_opts, compile_opts, diagnostics_cfg, args, "run").unwrap()
 }
