@@ -1,10 +1,13 @@
 use core::panic;
 
 use bend::{
+    compile_book,
     diagnostics::DiagnosticsConfig,
     fun::{ Book, Definition, Name, Pattern, Rule, Term },
+    imp::{ self, Expr, Stmt },
     CompileOpts,
 };
+use pyo3::{types::PyString, Bound, PyAny, Python};
 use python_ast::{ Assign, BinOp, BinOps, ExprType, Statement };
 
 use crate::benda_ffi::run;
@@ -152,40 +155,83 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) {
-
-        for stmt in self.statements.clone() {
-            // TODO: Statements can have another statments inside of them
-            // Make parsing recursive
-
-            let rule = self.parse_part(stmt);
-
-            match rule {
-                Some(r) => self.rules.push(r),
-                None => {}
-            }
-        }
-
-        self.book.defs.insert(Name::new("sum_nums"), Definition {
+    pub fn parse(&mut self) -> String {
+        let definition = imp::Definition {
             name: Name::new("sum_nums"),
-            rules: self.rules.clone(),
-            builtin: false,
-        });
-
-        self.book.defs.insert(Name::new("main"), Definition {
-            name: Name::new("main"),
-            rules: vec![Rule {
-                body: Term::call(
-                    Term::Var { nam: Name::new("sum_nums") },
-                    vec![]
+            params: vec![Name::new("a"), Name::new("b")],
+            body: Stmt::Assign {
+                pat: imp::AssignPattern::Var(Name::new("a")),
+                val: Box::new(Expr::Bin {
+                    op: bend::fun::Op::MUL,
+                    lhs: Box::new(Expr::Var { nam: Name::new("a") }),
+                    rhs: Box::new(Expr::Num { val: bend::fun::Num::U24(4) }),
+                }),
+                nxt: Some(
+                    Box::new(Stmt::Assign {
+                        pat: imp::AssignPattern::Var(Name::new("b")),
+                        val: Box::new(Expr::Bin {
+                            op: bend::fun::Op::MUL,
+                            lhs: Box::new(Expr::Var { nam: Name::new("b") }),
+                            rhs: Box::new(Expr::Num { val: bend::fun::Num::U24(2) }),
+                        }),
+                        nxt: Some(
+                            Box::new(Stmt::Return {
+                                term: Box::new(Expr::Bin {
+                                    op: bend::fun::Op::MUL,
+                                    lhs: Box::new(Expr::Var { nam: Name::new("a") }),
+                                    rhs: Box::new(Expr::Var { nam: Name::new("b") }),
+                                }),
+                            })
+                        ),
+                    })
                 ),
-                pats: vec![],
-            }],
-            builtin: false,
-        });
+            },
+        };
+
+        let fun_def = definition.to_fun(false).unwrap();
+
+        //for stmt in self.statements.clone() {
+        //    // TODO: Statements can have another statments inside of them
+        //    // Make parsing recursive
+
+        //    let rule = self.parse_part(stmt);
+
+        //    match rule {
+        //        Some(r) => self.rules.push(r),
+        //        None => {}
+        //    }
+        //}
+
+        self.book.defs.insert(Name::new("sum_nums"), fun_def);
+
+        let main_def = imp::Definition {
+            name: Name::new("main"),
+            params: vec![],
+            body: Stmt::Return {
+                term: Box::new(Expr::Call {
+                    fun: Box::new(Expr::Var { nam: Name::new("sum_nums") }),
+                    args: vec![
+                        Expr::Num { val: bend::fun::Num::U24(2) },
+                        Expr::Num { val: bend::fun::Num::U24(3) }
+                    ],
+                    kwargs: vec![],
+                }),
+            },
+        };
+
+        self.book.defs.insert(Name::new("main"), main_def.to_fun(true).unwrap());
+
+        self.book.entrypoint = None;
 
         println!("BEND:\n {}", self.book.display_pretty());
 
-        run(&self.book);
+        let return_val = run(&self.book);
+
+        match return_val {
+            Some(val) => {
+                val.0.to_string()
+            },
+            None => panic!("Could not run Bend code."),
+        }
     }
 }

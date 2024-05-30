@@ -7,16 +7,11 @@ def test():
     return number
 
 @bjit
-#def sum_nums():
-#    a = 10
-#    b = 20
-#    c = (a + b) * 4
-#    d = (c + b) / a
-#    return d
-
 def sum_nums():
     a = 10
     b = 20
-    c = (a + b)
-    d = (c + b)
+    c = (a + b) * 4
+    d = (c + b) / a
     return d
+
+print(sum_nums)
