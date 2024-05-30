@@ -8,8 +8,6 @@ use crate::benda_ffi::run;
 pub struct Parser {
     statements: Vec<Statement>,
     book: Book,
-    rules: Vec<Rule>,
-    vars: Vec<String>,
     index: usize,
 }
 
@@ -18,8 +16,6 @@ impl Parser {
         Self {
             statements,
             book: Book::default(),
-            rules: vec![],
-            vars: vec![],
             index: 0,
         }
     }
@@ -77,12 +73,6 @@ impl Parser {
     fn parse_assign(&mut self, assign: &Assign) -> Option<Expr> {
         // TODO: Implement tuple assignment
         let target = &assign.targets.get(0).unwrap().id;
-
-        let mut is_let = false;
-
-        if !self.vars.contains(target) {
-            is_let = true;
-        }
 
         let value = match &assign.value {
             python_ast::ExprType::Constant(c) => {
@@ -197,6 +187,7 @@ impl Parser {
         self.book.entrypoint = None;
 
         println!("BEND:\n {}", self.book.display_pretty());
+
 
         let return_val = run(&self.book);
 
