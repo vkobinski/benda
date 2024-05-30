@@ -75,17 +75,7 @@ impl Parser {
 
     fn parse_assign(&mut self, assign: &Assign) -> Option<Expr> {
         // TODO: Implement tuple assignment
-        let target = &assign.targets.get(0).unwrap().id;
-
-        match &assign.value {
-            python_ast::ExprType::Constant(c) => {
-                Some(Expr::Num {
-                    val: bend::fun::Num::U24(c.clone().0.unwrap().to_string().parse().unwrap()),
-                })
-            }
-            python_ast::ExprType::BinOp(bin) => { self.parse_bin_op(bin.clone()) }
-            _ => { panic!("Could not get assignment value.") }
-        }
+        self.parse_expr_type(Box::new(assign.value.clone()))
     }
 
     fn parse_part(&mut self, stmt: Statement) -> Option<Stmt> {
