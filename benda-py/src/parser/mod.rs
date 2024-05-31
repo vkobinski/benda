@@ -1,6 +1,7 @@
 use core::panic;
+use std::vec;
 
-use bend::{ fun::{ Book, Name, Op }, hvm::ast::OP_XOR, imp::{ self, Definition, MatchArm } };
+use bend::{ fun::{ Book, Name, Op }, hvm::ast::OP_XOR, imp::{ self, Definition, Expr, MatchArm } };
 use rustpython_parser::{
     ast::{ located::{ self, Stmt }, ExprBinOp, StmtAssign, StmtMatch },
     text_size::TextRange,
@@ -33,10 +34,41 @@ impl Parser {
                 if let imp::Expr::Var { nam: lib } = self.parse_expr_type(att.value).unwrap() {
                     let fun = att.attr.to_string();
                     if lib.to_string() == "benda" && fun == "switch" {
+                        return Some(Expr::Call {
+                            fun: Box::new(Expr::Var { nam: Name::new("switch") }),
+                            args: vec!(),
+                            kwargs: vec!(),
+                        });
                     }
                 }
-
                 None
+            }
+            rustpython_parser::ast::Expr::Compare(comp) => {
+                println!("EXPR : {:?}", comp);
+
+                let left = self.parse_expr_type(comp.left);
+                let right = self.parse_expr_type(
+                    Box::new(comp.comparators.get(0).unwrap().clone())
+                );
+
+                let op = match comp.ops.get(0).unwrap() {
+                    rustpython_parser::ast::CmpOp::Eq => Op::EQ,
+                    rustpython_parser::ast::CmpOp::NotEq => Op::NEQ,
+                    rustpython_parser::ast::CmpOp::Lt => Op::LT,
+                    rustpython_parser::ast::CmpOp::LtE => todo!(),
+                    rustpython_parser::ast::CmpOp::Gt => Op::GT,
+                    rustpython_parser::ast::CmpOp::GtE => todo!(),
+                    rustpython_parser::ast::CmpOp::Is => todo!(),
+                    rustpython_parser::ast::CmpOp::IsNot => todo!(),
+                    rustpython_parser::ast::CmpOp::In => todo!(),
+                    rustpython_parser::ast::CmpOp::NotIn => todo!(),
+                };
+
+                Some(Expr::Bin {
+                    op: op,
+                    lhs: Box::new(left.unwrap()),
+                    rhs: Box::new(right.unwrap()),
+                })
             }
             rustpython_parser::ast::Expr::BinOp(bin_op) => { self.parse_bin_op(bin_op) }
             rustpython_parser::ast::Expr::Constant(c) => {
@@ -60,7 +92,7 @@ impl Parser {
                 let fun = c.func;
 
                 let expr = self.parse_expr_type(fun);
-                todo!()
+                expr
             }
             rustpython_parser::ast::Expr::Name(n) => {
                 Some(imp::Expr::Var { nam: Name::new(n.id.to_string()) })
@@ -174,6 +206,48 @@ impl Parser {
                     .id.to_string();
 
                 let nxt = self.parse_vec(stmts, index + 1);
+
+                match value {
+                    Expr::Call { fun, args, kwargs } => {
+                        if let Expr::Var { nam } = *fun {
+                            if nam.to_string() != "switch" {
+                                return None;
+                            }
+                        }
+
+                        let mut arms: Vec<imp::Stmt> = vec![];
+                        let m: &StmtMatch;
+
+                        match stmts.get(index + 1).unwrap() {
+                            rustpython_parser::ast::Stmt::Match(ma) => {
+                                m = ma;
+                            }
+                            _ => {
+                                panic!();
+                            }
+                        }
+
+                        for case in &m.cases {
+                            let stmt_arm = self.parse_vec(&case.body.clone(), 0);
+
+                            if let Some(a) = stmt_arm {
+                                arms.push(a);
+                            }
+                        }
+
+                        return Some(imp::Stmt::Switch {
+                            arg: Box::new(self.parse_expr_type(m.subject.clone()).unwrap()),
+                            bind: Some(Name::new(name)),
+                            arms: arms,
+                            nxt: match nxt {
+                                Some(n) => { Some(Box::new(n)) }
+                                None => None,
+                            },
+                        });
+                    }
+                    _ => {}
+                }
+
                 Some(imp::Stmt::Assign {
                     pat: imp::AssignPattern::Var(Name::new(name)),
                     val: Box::new(value),
@@ -193,22 +267,23 @@ impl Parser {
                 }
             }
             rustpython_parser::ast::Stmt::Match(m) => {
-                let mut arms: Vec<imp::Stmt> = vec![];
+                //let mut arms: Vec<imp::Stmt> = vec![];
 
-                for case in &m.cases {
-                    let stmt_arm = self.parse_vec(&case.body.clone(), 0);
+                //for case in &m.cases {
+                //    let stmt_arm = self.parse_vec(&case.body.clone(), 0);
 
-                    if let Some(a) = stmt_arm {
-                        arms.push(a);
-                    }
-                }
+                //    if let Some(a) = stmt_arm {
+                //        arms.push(a);
+                //    }
+                //}
 
-                Some(imp::Stmt::Switch {
-                    arg: Box::new(self.parse_expr_type(m.subject.clone()).unwrap()),
-                    bind: None,
-                    arms: arms,
-                    nxt: Some(Box::new(self.parse_vec(stmts, index + 1)?)),
-                })
+                //Some(imp::Stmt::Switch {
+                //    arg: Box::new(self.parse_expr_type(m.subject.clone()).unwrap()),
+                //    bind: None,
+                //    arms: arms,
+                //    nxt: Some(Box::new(self.parse_vec(stmts, index + 1)?)),
+                //})
+                None
             }
             _ => None,
         }
