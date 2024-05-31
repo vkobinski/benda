@@ -102,7 +102,7 @@ impl Parser {
     }
 
     fn parse_bin_op(&self, bin: ExprBinOp<TextRange>) -> Option<imp::Expr> {
-        // TODO: Treat case where expr type returns None
+        // TODO(#5): Treat case where expr type returns None
         let left = self.parse_expr_type(bin.left).unwrap();
         let right = self.parse_expr_type(bin.right).unwrap();
 
