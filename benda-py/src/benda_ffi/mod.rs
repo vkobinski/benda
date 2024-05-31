@@ -1,8 +1,11 @@
-use std::path::Path;
+use bend::{
+    diagnostics::{ Diagnostics, DiagnosticsConfig },
+    fun::{ Book, Term },
+    CompileOpts,
+    RunOpts,
+};
 
-use bend::{diagnostics::{self, Diagnostics, DiagnosticsConfig}, fun::{Book, Term}, CompileOpts, RunOpts};
-
-pub fn run(book: &Book ) -> Option<(Term, String, Diagnostics)> {
+pub fn run(book: &Book) -> Option<(Term, String, Diagnostics)> {
     let run_opts = RunOpts { linear_readback: false, pretty: false };
     let compile_opts = CompileOpts::default();
     let diagnostics_cfg = DiagnosticsConfig::default();

@@ -1,9 +1,9 @@
 mod parser;
 
 use parser::Parser;
-use pyo3::{ prelude::*, types::{ PyCode, PyFunction } };
+use pyo3:: prelude::* ;
 
-use rustpython_parser::{ast::ModModule, parse, Mode, Parse};
+use rustpython_parser::{parse, Mode};
 
 
 mod benda_ffi;
@@ -12,7 +12,7 @@ fn main() -> PyResult<()> {
 
     let filename = String::from("main.py");
 
-    let code = std::fs::read_to_string(filename.to_string()).unwrap();
+    let code = std::fs::read_to_string(&filename).unwrap();
     let module = parse(code.as_str(), Mode::Module, "main.py").unwrap();
 
     match module {
