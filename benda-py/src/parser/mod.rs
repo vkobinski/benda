@@ -175,7 +175,7 @@ impl Parser {
 
         Some(imp::Stmt::Match {
             arg: Box::new(self.parse_expr_type(m.subject.clone()).unwrap()),
-            // TODO: Add binding
+            // TODO(#7): Add binding
             bind: None,
             arms: arms,
             nxt: Some(Box::new(self.parse_vec(stmts, index + 1)?)),
