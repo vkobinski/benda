@@ -1,70 +1,83 @@
 use core::panic;
 
-use bend::{ fun::{ Book, Name, Op }, hvm::ast::OP_XOR, imp::{ self, Expr, Stmt } };
-use python_ast::{ Assign, BinOp, BinOps, ExprType, Statement };
+use bend::{ fun::{ Book, Name, Op }, hvm::ast::OP_XOR, imp::{ self, Definition } };
+use rustpython_parser::{
+    ast::{ located::{ self, Stmt }, ExprBinOp, StmtAssign },
+    text_size::TextRange,
+};
 
 use crate::benda_ffi::run;
+use num_traits::cast::ToPrimitive;
 
 pub struct Parser {
-    statements: Vec<Statement>,
+    statements: Vec<rustpython_parser::ast::Stmt<TextRange>>,
     book: Book,
     index: usize,
+    definitions: Vec<imp::Definition>,
 }
 
 impl Parser {
-    pub fn new(statements: Vec<Statement>) -> Self {
+    pub fn new(statements: Vec<rustpython_parser::ast::Stmt<TextRange>>, index: usize) -> Self {
         Self {
             statements,
             book: Book::default(),
-            index: 0,
+            index,
+            definitions: vec![],
         }
     }
 
-    fn parse_expr_type(&self, expr: Box<ExprType>) -> Option<Expr> {
+    fn parse_expr_type(
+        &self,
+        expr: Box<rustpython_parser::ast::Expr<TextRange>>
+    ) -> Option<imp::Expr> {
         match *expr {
-            ExprType::BoolOp(_) => todo!(),
-            ExprType::NamedExpr(_) => todo!(),
-            ExprType::BinOp(bin_op) => { self.parse_bin_op(bin_op) }
-            ExprType::UnaryOp(_) => todo!(),
-            ExprType::Await(_) => todo!(),
-            ExprType::Compare(_) => todo!(),
-            ExprType::Call(_) => todo!(),
-            ExprType::Constant(c) =>
-                Some(Expr::Num {
-                    val: bend::fun::Num::U24(c.0.unwrap().to_string().parse().unwrap()),
-                }),
-            ExprType::Attribute(_) => todo!(),
-            ExprType::Name(n) => { Some(Expr::Var { nam: Name::new(n.id) }) }
-            ExprType::List(_) => todo!(),
-            ExprType::NoneType(_) => todo!(),
-            ExprType::Unimplemented(_) => todo!(),
-            ExprType::Unknown => todo!(),
+            rustpython_parser::ast::Expr::BinOp(bin_op) => { self.parse_bin_op(bin_op) }
+            rustpython_parser::ast::Expr::Constant(c) => {
+                match c.value {
+                    located::Constant::None => todo!(),
+                    located::Constant::Bool(_) => todo!(),
+                    located::Constant::Str(str) => todo!(),
+                    located::Constant::Bytes(_) => todo!(),
+                    located::Constant::Int(val) => {
+                        Some(imp::Expr::Num {
+                            val: bend::fun::Num::U24(val.to_u32().unwrap()),
+                        })
+                    }
+                    located::Constant::Tuple(_) => todo!(),
+                    located::Constant::Float(_) => todo!(),
+                    located::Constant::Complex { real, imag } => todo!(),
+                    located::Constant::Ellipsis => todo!(),
+                }
+            }
+            rustpython_parser::ast::Expr::Name(n) => {
+                Some(imp::Expr::Var { nam: Name::new(n.id.to_string()) })
+            }
+            _ => todo!(),
         }
     }
 
-    fn parse_bin_op(&self, bin: BinOp) -> Option<Expr> {
+    fn parse_bin_op(&self, bin: ExprBinOp<TextRange>) -> Option<imp::Expr> {
         // TODO: Treat case where expr type returns None
         let left = self.parse_expr_type(bin.left).unwrap();
         let right = self.parse_expr_type(bin.right).unwrap();
 
         let op: Op = match bin.op {
-            BinOps::Add => Op::ADD,
-            BinOps::Sub => Op::SUB,
-            BinOps::Mult => Op::MUL,
-            BinOps::Div => Op::DIV,
-            BinOps::FloorDiv => Op::DIV,
-            BinOps::Mod => todo!(),
-            BinOps::Pow => Op::POW,
-            BinOps::LShift => Op::SHL,
-            BinOps::RShift => Op::SHR,
-            BinOps::BitOr => Op::OR,
-            BinOps::BitXor => Op::XOR,
-            BinOps::BitAnd => Op::AND,
-            BinOps::MatMult => todo!(),
-            BinOps::Unknown => panic!("BinOp not known."),
+            rustpython_parser::ast::Operator::Add => Op::ADD,
+            rustpython_parser::ast::Operator::Sub => Op::SUB,
+            rustpython_parser::ast::Operator::Mult => Op::MUL,
+            rustpython_parser::ast::Operator::MatMult => todo!(),
+            rustpython_parser::ast::Operator::Div => Op::DIV,
+            rustpython_parser::ast::Operator::Mod => todo!(),
+            rustpython_parser::ast::Operator::Pow => Op::POW,
+            rustpython_parser::ast::Operator::LShift => Op::SHL,
+            rustpython_parser::ast::Operator::RShift => Op::SHR,
+            rustpython_parser::ast::Operator::BitOr => Op::OR,
+            rustpython_parser::ast::Operator::BitXor => Op::XOR,
+            rustpython_parser::ast::Operator::BitAnd => Op::AND,
+            rustpython_parser::ast::Operator::FloorDiv => todo!(),
         };
 
-        let operation = Expr::Bin {
+        let operation = imp::Expr::Bin {
             op,
             lhs: Box::new(left),
             rhs: Box::new(right),
@@ -73,52 +86,39 @@ impl Parser {
         Some(operation)
     }
 
-    fn parse_assign(&mut self, assign: &Assign) -> Option<Expr> {
+    fn parse_assign(&mut self, assign: &StmtAssign<TextRange>) -> Option<imp::Expr> {
         // TODO: Implement tuple assignment
-        self.parse_expr_type(Box::new(assign.value.clone()))
+        self.parse_expr_type(assign.value.clone())
     }
 
-    fn parse_part(&mut self, stmt: Statement) -> Option<Stmt> {
-        self.index += 1;
-        match stmt.statement {
-            python_ast::StatementType::Assign(assign) => {
-                let value = self.parse_assign(&assign).unwrap();
-                Some(Stmt::Assign {
-                    pat: imp::AssignPattern::Var(
-                        Name::new(assign.targets.get(0).unwrap().id.clone())
-                    ),
+    fn parse_vec(
+        &mut self,
+        stmts: &Vec<rustpython_parser::ast::Stmt<TextRange>>,
+        index: usize
+    ) -> Option<imp::Stmt> {
+        let stmt = stmts.get(index).unwrap();
+
+        match stmt {
+            rustpython_parser::ast::Stmt::Assign(assign) => {
+                let value = self.parse_assign(assign).unwrap();
+                let name = assign.targets
+                    .get(0)
+                    .unwrap()
+                    .clone()
+                    .name_expr()
+                    .unwrap()
+                    .id.to_string();
+                Some(imp::Stmt::Assign {
+                    pat: imp::AssignPattern::Var(Name::new(name)),
                     val: Box::new(value),
-                    nxt: Some(
-                        Box::new(self.parse_part(self.statements.get(self.index).unwrap().clone())?)
-                    ),
+                    nxt: Some(Box::new(self.parse_vec(stmts, index + 1)?)),
                 })
             }
-            python_ast::StatementType::Call(call) => {
-                let expr_type = *call.func;
-
-                match expr_type {
-                    python_ast::ExprType::BoolOp(_) => todo!(),
-                    python_ast::ExprType::NamedExpr(_) => todo!(),
-                    python_ast::ExprType::BinOp(_) => todo!(),
-                    python_ast::ExprType::UnaryOp(_) => todo!(),
-                    python_ast::ExprType::Await(_) => todo!(),
-                    python_ast::ExprType::Compare(_) => todo!(),
-                    python_ast::ExprType::Call(_) => todo!(),
-                    python_ast::ExprType::Constant(_) => todo!(),
-                    python_ast::ExprType::Attribute(_) => todo!(),
-                    python_ast::ExprType::Name(_) => todo!(),
-                    python_ast::ExprType::List(_) => todo!(),
-                    python_ast::ExprType::NoneType(_) => todo!(),
-                    python_ast::ExprType::Unimplemented(_) => todo!(),
-                    python_ast::ExprType::Unknown => todo!(),
-                }
-            }
-            python_ast::StatementType::Return(r) => {
-                match r {
+            rustpython_parser::ast::Stmt::Return(r) => {
+                match &r.value {
                     Some(val) => {
-                        let term = self.parse_expr_type(Box::new(val.value)).unwrap();
-
-                        Some(Stmt::Return { term: Box::new(term) })
+                        let term = self.parse_expr_type(val.clone()).unwrap();
+                        Some(imp::Stmt::Return { term: Box::new(term) })
                     }
                     None => None,
                 }
@@ -127,29 +127,51 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> String {
+    pub fn parse(&mut self, fun: &String) -> String {
         // TODO: Statements can have another statments inside of them
         // Make parsing recursive
 
-        let expr = self.parse_part(self.statements.get(self.index).unwrap().clone());
+        for stmt in self.statements.clone() {
+            match stmt {
+                rustpython_parser::ast::Stmt::FunctionDef(fun_def) => {
+                    let args = *fun_def.args;
+                    let mut names: Vec<Name> = vec![];
 
-        let sum_nums = imp::Definition {
-            name: Name::new("sum_nums"),
-            params: vec![Name::new("a"), Name::new("b")],
-            body: expr.unwrap(),
-        };
-        let fun_def = sum_nums.to_fun(false).unwrap();
-        self.book.defs.insert(Name::new("sum_nums"), fun_def);
+                    for arg in args.args {
+                        names.push(Name::new(arg.def.arg.to_string()));
+                    }
+
+                    let expr = self.parse_vec(&fun_def.body, 0);
+
+                    let def = imp::Definition {
+                        name: Name::new(fun_def.name.to_string()),
+                        params: names,
+                        body: expr.unwrap(),
+                    };
+
+                    self.definitions.push(def);
+                }
+                _ => {
+                    //self.parse_part(self.statements.get(self.index).unwrap().clone());
+                }
+            }
+        }
+
+        for def in &self.definitions {
+            let fun_def = def.clone().to_fun(false).unwrap();
+            self.book.defs.insert(fun_def.name.clone(), fun_def.clone());
+        }
 
         let main_def = imp::Definition {
             name: Name::new("main"),
             params: vec![],
-            body: Stmt::Return {
-                term: Box::new(Expr::Call {
-                    fun: Box::new(Expr::Var { nam: Name::new("sum_nums") }),
+            body: imp::Stmt::Return {
+                term: Box::new(imp::Expr::Call {
+                    fun: Box::new(imp::Expr::Var { nam: Name::new("sum_nums") }),
                     args: vec![
-                        Expr::Num { val: bend::fun::Num::U24(2) },
-                        Expr::Num { val: bend::fun::Num::U24(3) }
+                        imp::Expr::Num { val: bend::fun::Num::U24(2) },
+                        imp::Expr::Num { val: bend::fun::Num::U24(2) },
+                        imp::Expr::Num { val: bend::fun::Num::U24(12) }
                     ],
                     kwargs: vec![],
                 }),

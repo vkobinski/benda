@@ -1,8 +1,7 @@
-use std::borrow::Borrow;
-
+use bend::fun;
 use parser::Parser;
 use pyo3::{ conversion::FromPyObjectBound, prelude::*, types::{ PyFunction, PyString, PyTuple } };
-use python_ast::{parse, CodeGen, Name};
+use rustpython_parser::{ parse, source_code::SourceRange, text_size::TextRange, Mode };
 use types::u24::u24;
 mod types;
 mod parser;
@@ -26,26 +25,30 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
     };
 
     let code = std::fs::read_to_string(filename.to_string()).unwrap();
-    let ast = parse(&code, "").unwrap();
+    let module = parse(code.as_str(), Mode::Module, "tree.py").unwrap();
 
     let mut val: Option<Bound<PyString>> = None;
 
-    for stmt in &ast.raw.body {
-
-        match &stmt.statement {
-            python_ast::StatementType::FunctionDef(fun_def) => {
-                if fun_def.name == name.to_string() {
-                    let mut parser = Parser::new(fun_def.body.clone());
-                    let return_val = parser.parse();
-                    val = Some(PyString::new_bound(py, &return_val.as_str()));
+    match module {
+        rustpython_parser::ast::Mod::Module(mods) => {
+            for (index, stmt) in mods.body.iter().enumerate() {
+                match stmt {
+                    rustpython_parser::ast::Stmt::FunctionDef(fun_def) => {
+                        let fun_body: rustpython_parser::ast::Stmt<TextRange>;
+                        if fun_def.name.to_string() == name.to_string() {
+                            let mut parser = Parser::new(mods.body.clone(), 0);
+                            let return_val = parser.parse(&fun_def.name.to_string());
+                            val = Some(PyString::new_bound(py, &return_val.as_str()));
+                        }
+                    }
+                    _ => {}
                 }
-            },
-            _ => {},
+            }
         }
-        };
-    
-    Ok(val.unwrap().to_object(py))
+        _ => unimplemented!(),
+    }
 
+    Ok(val.unwrap().to_object(py))
 }
 
 /// A Python module implemented in Rust.
