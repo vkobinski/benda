@@ -1,20 +1,14 @@
 from benda import bjit
-#import benda
-
-#def test():
-    #number = benda.u24(3)
-    #number = number - benda.u24(2)
-    #return number
-
-def test():
-    number = 3
-    number = number - 2
-    return number
+import benda
 
 @bjit
 def sum_nums(a, b, mul):
-    c = (a + b) * mul
-    d = (c + b) / 2
+    d = benda.switch()
+    match a:
+        case 1:
+            return a + b
+        case 2:
+            return a * mul
     return d
 
 print(sum_nums)

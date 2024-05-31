@@ -1,8 +1,8 @@
 use core::panic;
 
-use bend::{ fun::{ Book, Name, Op }, hvm::ast::OP_XOR, imp::{ self, Definition } };
+use bend::{ fun::{ Book, Name, Op }, hvm::ast::OP_XOR, imp::{ self, Definition, MatchArm } };
 use rustpython_parser::{
-    ast::{ located::{ self, Stmt }, ExprBinOp, StmtAssign },
+    ast::{ located::{ self, Stmt }, ExprBinOp, StmtAssign, StmtMatch },
     text_size::TextRange,
 };
 
@@ -12,7 +12,6 @@ use num_traits::cast::ToPrimitive;
 pub struct Parser {
     statements: Vec<rustpython_parser::ast::Stmt<TextRange>>,
     book: Book,
-    index: usize,
     definitions: Vec<imp::Definition>,
 }
 
@@ -21,7 +20,6 @@ impl Parser {
         Self {
             statements,
             book: Book::default(),
-            index,
             definitions: vec![],
         }
     }
@@ -49,6 +47,14 @@ impl Parser {
                     located::Constant::Ellipsis => todo!(),
                 }
             }
+            rustpython_parser::ast::Expr::Call(c) => {
+                let fun = c.func;
+
+                println!("{:?}", *fun);
+
+                todo!()
+
+            },
             rustpython_parser::ast::Expr::Name(n) => {
                 Some(imp::Expr::Var { nam: Name::new(n.id.to_string()) })
             }
@@ -91,12 +97,63 @@ impl Parser {
         self.parse_expr_type(assign.value.clone())
     }
 
+    fn parse_match(
+        &mut self,
+        m: &StmtMatch<TextRange>,
+        stmts: &Vec<rustpython_parser::ast::Stmt<TextRange>>,
+        index: &usize
+    ) -> Option<imp::Stmt> {
+        let mut arms: Vec<imp::MatchArm> = vec![];
+
+        for case in &m.cases {
+            let stmt_arm = self.parse_vec(&case.body.clone(), 0);
+
+            let pat = match &case.pattern {
+                rustpython_parser::ast::Pattern::MatchValue(val) => {
+                    let expr = self.parse_expr_type(val.value.clone()).unwrap();
+                    match expr {
+                        imp::Expr::Var { nam } => { Some(nam) }
+                        _ => None,
+                    }
+                }
+                rustpython_parser::ast::Pattern::MatchSingleton(_) => todo!(),
+                rustpython_parser::ast::Pattern::MatchSequence(_) => todo!(),
+                rustpython_parser::ast::Pattern::MatchMapping(_) => todo!(),
+                rustpython_parser::ast::Pattern::MatchClass(_) => todo!(),
+                rustpython_parser::ast::Pattern::MatchStar(_) => todo!(),
+                rustpython_parser::ast::Pattern::MatchAs(_) => todo!(),
+                rustpython_parser::ast::Pattern::MatchOr(_) => todo!(),
+            };
+
+            match stmt_arm {
+                Some(a) => {
+                    let arm = MatchArm { lft: pat, rgt: a };
+                    arms.push(arm);
+                }
+                None => {}
+            }
+        }
+
+        Some(imp::Stmt::Match {
+            arg: Box::new(self.parse_expr_type(m.subject.clone()).unwrap()),
+            // TODO: Add binding
+            bind: None,
+            arms: arms,
+            nxt: Some(Box::new(self.parse_vec(stmts, index + 1)?)),
+        })
+    }
+
     fn parse_vec(
         &mut self,
         stmts: &Vec<rustpython_parser::ast::Stmt<TextRange>>,
         index: usize
     ) -> Option<imp::Stmt> {
-        let stmt = stmts.get(index).unwrap();
+        let stmt = match stmts.get(index) {
+            Some(s) => s,
+            None => {
+                return None;
+            }
+        };
 
         match stmt {
             rustpython_parser::ast::Stmt::Assign(assign) => {
@@ -108,10 +165,15 @@ impl Parser {
                     .name_expr()
                     .unwrap()
                     .id.to_string();
+
+                let nxt = self.parse_vec(stmts, index + 1);
                 Some(imp::Stmt::Assign {
                     pat: imp::AssignPattern::Var(Name::new(name)),
                     val: Box::new(value),
-                    nxt: Some(Box::new(self.parse_vec(stmts, index + 1)?)),
+                    nxt: match nxt {
+                        Some(n) => { Some(Box::new(n)) }
+                        None => None,
+                    },
                 })
             }
             rustpython_parser::ast::Stmt::Return(r) => {
@@ -123,7 +185,25 @@ impl Parser {
                     None => None,
                 }
             }
-            _ => { None }
+            rustpython_parser::ast::Stmt::Match(m) => {
+                let mut arms: Vec<imp::Stmt> = vec![];
+
+                for case in &m.cases {
+                    let stmt_arm = self.parse_vec(&case.body.clone(), 0);
+
+                    if let Some(a) = stmt_arm {
+                        arms.push(a);
+                    }
+                }
+
+                Some(imp::Stmt::Switch {
+                    arg: Box::new(self.parse_expr_type(m.subject.clone()).unwrap()),
+                    bind: None,
+                    arms: arms,
+                    nxt: Some(Box::new(self.parse_vec(stmts, index + 1)?)),
+                })
+            }
+            _ => None,
         }
     }
 

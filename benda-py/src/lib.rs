@@ -13,6 +13,11 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 }
 
 #[pyfunction]
+fn switch() -> PyResult<String> {
+    Ok("Ok".to_string())
+}
+
+#[pyfunction]
 fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
     let (name, filename) = match fun.downcast::<PyFunction>() {
         Ok(inner) => {
@@ -56,6 +61,7 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
 fn benda(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     m.add_function(wrap_pyfunction!(bjit, m)?)?;
+    m.add_function(wrap_pyfunction!(switch, m)?)?;
     m.add_class::<u24>()?;
     Ok(())
 }
