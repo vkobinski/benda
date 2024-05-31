@@ -29,6 +29,15 @@ impl Parser {
         expr: Box<rustpython_parser::ast::Expr<TextRange>>
     ) -> Option<imp::Expr> {
         match *expr {
+            rustpython_parser::ast::Expr::Attribute(att) => {
+                if let imp::Expr::Var { nam: lib } = self.parse_expr_type(att.value).unwrap() {
+                    let fun = att.attr.to_string();
+                    if lib.to_string() == "benda" && fun == "switch" {
+                    }
+                }
+
+                None
+            }
             rustpython_parser::ast::Expr::BinOp(bin_op) => { self.parse_bin_op(bin_op) }
             rustpython_parser::ast::Expr::Constant(c) => {
                 match c.value {
@@ -50,11 +59,9 @@ impl Parser {
             rustpython_parser::ast::Expr::Call(c) => {
                 let fun = c.func;
 
-                println!("{:?}", *fun);
-
+                let expr = self.parse_expr_type(fun);
                 todo!()
-
-            },
+            }
             rustpython_parser::ast::Expr::Name(n) => {
                 Some(imp::Expr::Var { nam: Name::new(n.id.to_string()) })
             }
