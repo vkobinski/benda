@@ -290,7 +290,7 @@ impl Parser {
     }
 
     pub fn parse(&mut self, fun: &String) -> String {
-        // TODO: Statements can have another statments inside of them
+        // TODO(#8): Statements can have another statments inside of them
         // Make parsing recursive
 
         for stmt in self.statements.clone() {
