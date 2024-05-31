@@ -1,46 +1,27 @@
 mod parser;
 
-use std::path::Path;
-
-use bend::{diagnostics::DiagnosticsConfig, CompileOpts};
 use parser::Parser;
 use pyo3::{ prelude::*, types::{ PyCode, PyFunction } };
 
-use python_ast::parse;
+use rustpython_parser::{ast::ModModule, parse, Mode, Parse};
+
 
 mod benda_ffi;
 
 fn main() -> PyResult<()> {
 
-    let mut book = bend::load_file_to_book(Path::new("main.bend")).unwrap();
-
-    println!("{}", book.display_pretty());
-
-    let opts = CompileOpts::default();
-    let diagnostics_cfg = DiagnosticsConfig::default();
-    let args = None;
-
-    let new_book = bend::compile_book(&mut book, opts, diagnostics_cfg, args);
-
-    println!("NEW BOOK \n{}", book.display_pretty());
-
-    let name = String::from("sum_nums");
     let filename = String::from("main.py");
 
     let code = std::fs::read_to_string(filename.to_string()).unwrap();
-    let ast = parse(&code, "").unwrap();
+    let module = parse(code.as_str(), Mode::Module, "main.py").unwrap();
 
-    for stmt in &ast.raw.body {
-        match &stmt.statement {
-            python_ast::StatementType::FunctionDef(fun_def) => {
-                if fun_def.name == name.to_string() {
-                    let mut parser = Parser::new(fun_def.body.clone());
-                    parser.parse();
-                }
-            }
-            _ => {}
-        }
-    }
+    match module {
+        rustpython_parser::ast::Mod::Module(mods) => {
+            let mut parser = Parser::new(mods.body, 0);
+            parser.parse(&String::from("sum_nums"));
+        },
+        _ => todo!(),
+    };
 
     Ok(())
 }
