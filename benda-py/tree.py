@@ -1,9 +1,6 @@
 from dataclasses import dataclass
 from benda import bjit, u24
 
-u24 = int
-
-
 @dataclass
 class Leaf:
     value: u24

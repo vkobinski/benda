@@ -29,9 +29,7 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
     };
 
     let code = std::fs::read_to_string(filename.to_string()).unwrap();
-    let module = parse(code.as_str(), Mode::Module, "tree.py").unwrap();
-
-    println!("{:?}", module);
+    let module = parse(code.as_str(), Mode::Module, "main.py").unwrap();
 
     let mut val: Option<Bound<PyString>> = None;
 
@@ -40,6 +38,7 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
             for stmt in mods.body.iter() {
                 if let rustpython_parser::ast::Stmt::FunctionDef(fun_def) = stmt {
                     if fun_def.name == name.to_string() {
+                        //let mut parser = Parser::new(mods.body.clone(), 0);
                         let mut parser = Parser::new(mods.body.clone(), 0);
                         let return_val = parser.parse(fun_def.name.as_ref());
                         val = Some(PyString::new_bound(py, return_val.as_str()));

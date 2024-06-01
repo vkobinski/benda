@@ -1,12 +1,9 @@
 use core::panic;
 use std::vec;
 
-use bend::{ fun::{ Adt, Book, Name, Op }, imp::{ self, Expr, MatchArm } };
+use bend::{ fun::{ Adt, Book, CtrField, Name, Op }, imp::{ self, Expr, MatchArm } };
 use indexmap::IndexMap;
-use rustpython_parser::{
-    ast::{ located::{ self }, ExprBinOp, StmtAssign, StmtMatch },
-    text_size::TextRange,
-};
+use rustpython_parser::{ ast::{ located, ExprBinOp, StmtAssign, StmtMatch }, text_size::TextRange };
 
 use rustpython_parser::ast::Expr as rExpr;
 use rustpython_parser::ast::Stmt as rStmt;
@@ -93,7 +90,26 @@ impl Parser {
             rExpr::Call(c) => {
                 let fun = c.func;
 
-                self.parse_expr_type(fun)
+                let expr = self.parse_expr_type(fun);
+
+                if let Some(Expr::Var { nam }) = expr {
+                    match self.book.adts.get(&nam.clone()) {
+                        Some(val) => {
+                            let arg = self.parse_expr_type(
+                                Box::new(c.args.first().unwrap().clone())
+                            );
+
+                            return Some(imp::Expr::Constructor {
+                                name: val.ctrs.first().unwrap().0.clone(),
+                                args: vec![arg.unwrap()],
+                                kwargs: vec![],
+                            });
+                        }
+                        None => panic!("Type not defined."),
+                    }
+                }
+
+                expr
             }
             rExpr::Name(n) => { Some(imp::Expr::Var { nam: Name::new(n.id.to_string()) }) }
             _ => todo!(),
@@ -179,7 +195,7 @@ impl Parser {
 
     fn parse_vec(&mut self, stmts: &Vec<rStmt<TextRange>>, index: usize) -> Option<imp::Stmt> {
         let stmt = match stmts.get(index) {
-            Some(s) => s,
+            Some(s) => { s }
             None => {
                 return None;
             }
@@ -200,27 +216,25 @@ impl Parser {
 
                 if let Expr::Call { fun, args: _, kwargs: _ } = value.clone() {
                     if let Expr::Var { nam } = *fun {
-                        if nam.to_string() != "switch" {
-                            return None;
-                        }
-                    }
+                        if nam.to_string() == "switch" {
+                            let mut arms: Vec<imp::Stmt> = vec![];
+                            if let Some(rStmt::Match(m)) = stmts.get(index + 1) {
+                                for case in &m.cases {
+                                    let stmt_arm = self.parse_vec(&case.body.clone(), 0);
 
-                    let mut arms: Vec<imp::Stmt> = vec![];
-                    if let Some(rStmt::Match(m)) = stmts.get(index + 1) {
-                        for case in &m.cases {
-                            let stmt_arm = self.parse_vec(&case.body.clone(), 0);
+                                    if let Some(a) = stmt_arm {
+                                        arms.push(a);
+                                    }
+                                }
 
-                            if let Some(a) = stmt_arm {
-                                arms.push(a);
+                                return Some(imp::Stmt::Switch {
+                                    arg: Box::new(self.parse_expr_type(m.subject.clone()).unwrap()),
+                                    bind: Some(Name::new(name)),
+                                    arms,
+                                    nxt: nxt.map(Box::new),
+                                });
                             }
                         }
-
-                        return Some(imp::Stmt::Switch {
-                            arg: Box::new(self.parse_expr_type(m.subject.clone()).unwrap()),
-                            bind: Some(Name::new(name)),
-                            arms,
-                            nxt: nxt.map(Box::new),
-                        });
                     }
                 }
 
@@ -262,6 +276,35 @@ impl Parser {
         }
     }
 
+    fn add_adt(&mut self, nam: Name, adt: Adt) {
+        if let Some(adt) = self.book.adts.get(&nam) {
+            if adt.builtin {
+                panic!("{} is a built-in datatype and should not be overridden.", nam);
+            } else {
+                panic!("Repeated datatype '{}'", nam);
+            }
+        } else {
+            for ctr in adt.ctrs.keys() {
+                match self.book.ctrs.entry(ctr.clone()) {
+                    indexmap::map::Entry::Vacant(e) => {
+                        _ = e.insert(nam.clone());
+                    }
+                    indexmap::map::Entry::Occupied(e) => {
+                        if self.book.adts.get(e.get()).is_some_and(|adt| adt.builtin) {
+                            panic!(
+                                "{} is a built-in constructor and should not be overridden.",
+                                e.key()
+                            );
+                        } else {
+                            panic!("Repeated constructor '{}'", e.key());
+                        }
+                    }
+                }
+            }
+        }
+        self.book.adts.insert(nam.clone(), adt);
+    }
+
     pub fn parse(&mut self, _fun: &str) -> String {
         for stmt in self.statements.clone() {
             match stmt {
@@ -283,19 +326,70 @@ impl Parser {
 
                     self.definitions.push(def);
                 }
+                rStmt::ClassDef(class) => {
+                    let is_dataclass = class.decorator_list.iter().any(|exp| {
+                        if let rExpr::Name(nam) = exp {
+                            if nam.id.to_string() == "dataclass" {
+                                return true;
+                            }
+                        }
+                        false
+                    });
+
+                    let iden = class.name.to_string();
+
+                    if is_dataclass {
+                        let stmt = class.body.first().unwrap();
+                        let mut adt = Adt { ctrs: IndexMap::new(), builtin: false };
+
+                        match stmt {
+                            rStmt::AnnAssign(assign) => {
+                                let mut e_type = String::default();
+                                let mut target = String::default();
+
+                                if let rExpr::Name(nam) = *assign.annotation.clone() {
+                                    e_type = nam.id.to_string();
+                                }
+
+                                if let rExpr::Name(nam) = *assign.target.clone() {
+                                    target = nam.id.to_string();
+                                }
+
+                                let ctr_field = CtrField { nam: Name::new(target), rec: true };
+
+                                adt.ctrs.insert(
+                                    Name::new(format!("{}/{}", iden, e_type)),
+                                    vec![ctr_field]
+                                );
+                            }
+                            _ => todo!(),
+                        }
+
+                        self.add_adt(Name::new(iden), adt);
+                    }
+                }
                 _ => {
                     //self.parse_part(self.statements.get(self.index).unwrap().clone());
                 }
             }
         }
 
-        let ctrs = IndexMap::new();
-        let adt = Adt { ctrs, builtin: false };
-
         for def in &self.definitions {
             let fun_def = def.clone().to_fun(false).unwrap();
             self.book.defs.insert(fun_def.name.clone(), fun_def.clone());
         }
+
+        //let main_def = imp::Definition {
+        //    name: Name::new("main"),
+        //    params: vec![],
+        //    body: imp::Stmt::Return {
+        //        term: Box::new(imp::Expr::Call {
+        //            fun: Box::new(imp::Expr::Var { nam: Name::new("sum_nums") }),
+        //            args: vec![imp::Expr::Num { val: bend::fun::Num::U24(2) }],
+        //            kwargs: vec![],
+        //        }),
+        //    },
+        //};
 
         let main_def = imp::Definition {
             name: Name::new("main"),
@@ -303,11 +397,7 @@ impl Parser {
             body: imp::Stmt::Return {
                 term: Box::new(imp::Expr::Call {
                     fun: Box::new(imp::Expr::Var { nam: Name::new("sum_nums") }),
-                    args: vec![
-                        imp::Expr::Num { val: bend::fun::Num::U24(2) },
-                        imp::Expr::Num { val: bend::fun::Num::U24(2) },
-                        imp::Expr::Num { val: bend::fun::Num::U24(12) }
-                    ],
+                    args: vec![imp::Expr::Num { val: bend::fun::Num::U24(2) }],
                     kwargs: vec![],
                 }),
             },
@@ -318,6 +408,8 @@ impl Parser {
         self.book.entrypoint = None;
 
         println!("BEND:\n {}", self.book.display_pretty());
+
+        //println!("BEND: \n{:?}", self.book.defs);
 
         let return_val = run(&self.book);
 
