@@ -31,6 +31,8 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
     let code = std::fs::read_to_string(filename.to_string()).unwrap();
     let module = parse(code.as_str(), Mode::Module, "tree.py").unwrap();
 
+    println!("{:?}", module);
+
     let mut val: Option<Bound<PyString>> = None;
 
     match module {

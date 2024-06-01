@@ -1,7 +1,8 @@
 use core::panic;
 use std::vec;
 
-use bend::{ fun::{ Book, Name, Op }, imp::{ self, Expr, MatchArm } };
+use bend::{ fun::{ Adt, Book, Name, Op }, imp::{ self, Expr, MatchArm } };
+use indexmap::IndexMap;
 use rustpython_parser::{
     ast::{ located::{ self }, ExprBinOp, StmtAssign, StmtMatch },
     text_size::TextRange,
@@ -287,6 +288,9 @@ impl Parser {
                 }
             }
         }
+
+        let ctrs = IndexMap::new();
+        let adt = Adt { ctrs, builtin: false };
 
         for def in &self.definitions {
             let fun_def = def.clone().to_fun(false).unwrap();

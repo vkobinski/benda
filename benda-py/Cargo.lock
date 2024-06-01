@@ -118,6 +118,7 @@ name = "benda"
 version = "0.1.0"
 dependencies = [
  "bend-lang",
+ "indexmap",
  "num-bigint",
  "num-traits",
  "pyo3",

@@ -1,6 +1,8 @@
 from benda import bjit
 import benda
 
+Bool = True | False
+
 @bjit
 def sum_nums(a, b, mul):
     d = benda.switch()
