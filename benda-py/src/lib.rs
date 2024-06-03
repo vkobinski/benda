@@ -39,6 +39,7 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
                 if let rustpython_parser::ast::Stmt::FunctionDef(fun_def) = stmt {
                     if fun_def.name == name.to_string() {
                         //let mut parser = Parser::new(mods.body.clone(), 0);
+
                         let mut parser = Parser::new(mods.body.clone(), 0);
                         let return_val = parser.parse(fun_def.name.as_ref());
                         val = Some(PyString::new_bound(py, return_val.as_str()));

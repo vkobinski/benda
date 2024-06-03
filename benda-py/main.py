@@ -6,10 +6,17 @@ import benda
 class Leaf:
     value: u24
 
+@dataclass
+class Node:
+    left: 'Tree'
+    right: 'Tree'
+
+Tree = Node | Leaf
+
 @bjit
 def sum_nums(a):
 
-    leaf = Leaf(a)
+    node = Node(Leaf(a), Leaf(2))
 
     #d = benda.switch()
     #match a == b:
@@ -19,6 +26,6 @@ def sum_nums(a):
     #        return a * mul
     #return d
 
-    return leaf
+    return node
 
 print(sum_nums)

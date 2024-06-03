@@ -1,6 +1,9 @@
-
 type Leaf = u24
-type Tree = (Node ~left ~right) | Leaf
+type Node = (Tree left) | (Tree right)
+
+type Tree = Leaf | Node
 
 def main:
-  return Tree/Leaf(1)
+  tree = Tree/Leaf(2)
+  o_tree = Tree/Leaf(2)
+  return Tree/Node(tree, o_tree)
