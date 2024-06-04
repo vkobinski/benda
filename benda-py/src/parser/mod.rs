@@ -1,10 +1,7 @@
 use core::panic;
 use std::vec;
 
-use bend::{
-    fun::{ self, Adt, Book, CtrField, Name, Op },
-    imp::{ self, Definition, Expr, MatchArm },
-};
+use bend::{ fun::{ Adt, Book, CtrField, Name, Op }, imp::{ self, Expr, MatchArm } };
 use indexmap::IndexMap;
 use rustpython_parser::{ ast::{ located, ExprBinOp, StmtAssign, StmtMatch }, text_size::TextRange };
 
@@ -15,7 +12,7 @@ use rustpython_parser::ast::Operator as rOperator;
 use rustpython_parser::ast::Pattern as rPattern;
 
 use crate::benda_ffi::run;
-use num_traits::{ cast::ToPrimitive, FromBytes };
+use num_traits::cast::ToPrimitive;
 
 #[derive(Clone)]
 enum FromExpr {
@@ -451,6 +448,27 @@ impl Parser {
                         self.definitions.push(def);
                     }
                 }
+                rStmt::Assign(assign) => {
+                    let iden = assign.targets.first().unwrap();
+
+                    let name: String;
+
+                    if let rExpr::Name(iden) = iden {
+                        name = iden.id.to_string();
+                        let mut adt = Adt { ctrs: IndexMap::new(), builtin: false };
+
+                        let body = self.parse_expr_type(assign.value);
+
+                        if let Some(FromExpr::CtrField(ctr)) = body {
+                            adt.ctrs.insert(
+                                Name::new(format!("{}/{}", name, ctr.first().unwrap().nam)),
+                                ctr
+                            );
+                        }
+
+                        self.add_adt(Name::new(name), adt);
+                    }
+                }
                 rStmt::ClassDef(class) => {
                     let is_dataclass = class.decorator_list.iter().any(|exp| {
                         if let rExpr::Name(nam) = exp {
@@ -500,7 +518,6 @@ impl Parser {
 
         for def in &self.definitions {
             let fun_def = def.clone().to_fun(false).unwrap();
-            println!("definition {}", fun_def.name);
             self.book.defs.insert(fun_def.name.clone(), fun_def.clone());
         }
 
@@ -522,8 +539,6 @@ impl Parser {
         self.book.defs.insert(Name::new("main"), main_def.to_fun(true).unwrap());
 
         self.book.entrypoint = None;
-
-        println!("{:?}\n\n\n", self.book.defs);
 
         println!("BEND:\n {}", self.book.display_pretty());
 

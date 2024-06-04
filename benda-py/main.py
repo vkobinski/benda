@@ -16,7 +16,7 @@ Tree = Node | Leaf
 @bjit
 def sum_nums(a):
 
-    node = Node(Leaf(a), Leaf(2))
+    node = Tree(Node(Leaf(a), Leaf(2)))
 
     #d = benda.switch()
     #match a == b:
