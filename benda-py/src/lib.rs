@@ -50,6 +50,8 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
         _ => unimplemented!(),
     }
 
+    println!("Val: {:?}", val);
+
     Ok(val.unwrap().to_object(py))
 }
 

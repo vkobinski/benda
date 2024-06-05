@@ -1,5 +1,5 @@
 use core::panic;
-use std::vec;
+use std::{ char::CharTryFromError, vec };
 
 use bend::{ fun::{ Adt, Book, CtrField, Name, Op, STRINGS }, imp::{ self, Expr, MatchArm, Stmt } };
 use indexmap::IndexMap;
@@ -28,7 +28,7 @@ impl FromExpr {
 }
 
 struct Context {
-    now: Option<rExpr>,
+    //now: Option<rExpr>,
     vars: Vec<String>,
     subs: Vec<String>,
 }
@@ -129,7 +129,17 @@ impl Parser {
             }
 
             rExpr::Name(n) => {
-                Some(FromExpr::Expr(imp::Expr::Var { nam: Name::new(n.id.to_string()) }))
+                let mut name = n.id.to_string();
+
+                if let Some(ctx) = &self.ctx {
+                    for var in &ctx.vars {
+                        if *var == n.id.to_string() {
+                            name = format!("{}.{}", ctx.subs.first().unwrap(), var);
+                        }
+                    }
+                }
+
+                Some(FromExpr::Expr(imp::Expr::Var { nam: Name::new(name) }))
             }
 
             rExpr::Call(c) => {
@@ -147,10 +157,13 @@ impl Parser {
                             args.push(e);
                         }
                     }
-                    if let Some(val) = self.book.adts.get(&nam.clone()) {
+
+                    // TODO: Fix this name
+                    let new_name = Name::new(format!("Tree/{}", nam));
+                    if let Some(_val) = self.book.ctrs.get(&new_name.clone()) {
                         return Some(
                             FromExpr::Expr(imp::Expr::Constructor {
-                                name: val.ctrs.first().unwrap().0.clone(),
+                                name: new_name.clone(),
                                 args,
                                 kwargs: vec![],
                             })
@@ -273,9 +286,12 @@ impl Parser {
                 rPattern::MatchOr(_) => todo!(),
             };
 
+            self.ctx = Some(Context { vars: patt.clone(), subs: vec!["tree".to_string()] });
+
             let stmt_arm = self.parse_vec(&case.body.clone(), 0);
 
             if let Some(pat) = pat {
+                // TODO: Fix adding the real name
                 let first = Some(Name::new(format!("{}/{}", "Tree", pat)));
                 if let Some(FromExpr::Statement(a)) = stmt_arm {
                     let arm = MatchArm { lft: first, rgt: a };
@@ -283,6 +299,8 @@ impl Parser {
                 }
             }
         }
+
+        self.ctx = None;
 
         if let Some(FromExpr::Expr(subj)) = self.parse_expr_type(*m.subject.clone()) {
             let nxt = self.parse_vec(stmts, index + 1);
@@ -516,9 +534,20 @@ impl Parser {
 
                         if let Some(FromExpr::CtrField(ctr)) = body {
                             for ct in ctr.clone() {
+                                let new_ctr = self.book.ctrs.swap_remove(&ct.nam);
+
+                                let new_adt = self.book.adts.swap_remove(&new_ctr.unwrap());
+
+                                let mut ctrs: Vec<CtrField> = vec![];
+                                for ca in new_adt.unwrap().ctrs.values() {
+                                    for i in ca {
+                                        ctrs.push(i.clone());
+                                    }
+                                }
+
                                 adt.ctrs.insert(
                                     Name::new(format!("{}/{}", name, ct.nam)),
-                                    ctr.clone()
+                                    ctrs.clone()
                                 );
                             }
                         }
@@ -556,7 +585,16 @@ impl Parser {
 
                                     let ctr_field = CtrField { nam: Name::new(target), rec: true };
 
-                                    adt.ctrs.insert(Name::new(iden.to_string()), vec![ctr_field]);
+                                    let new_name = Name::new(iden.to_string());
+
+                                    match adt.ctrs.get_mut(&new_name) {
+                                        Some(vec) => {
+                                            vec.push(ctr_field);
+                                        }
+                                        None => {
+                                            adt.ctrs.insert(new_name.clone(), vec![ctr_field]);
+                                        }
+                                    }
                                 }
                                 _ => todo!(),
                             }
@@ -582,8 +620,8 @@ impl Parser {
                 term: Box::new(imp::Expr::Call {
                     fun: Box::new(imp::Expr::Var { nam: Name::new("sum_tree") }),
                     args: vec![
-                        imp::Expr::Num { val: bend::fun::Num::U24(10) },
-                        imp::Expr::Num { val: bend::fun::Num::U24(5) }
+                        imp::Expr::Num { val: bend::fun::Num::U24(0) },
+                        imp::Expr::Num { val: bend::fun::Num::U24(20) }
                     ],
                     kwargs: vec![],
                 }),
@@ -595,8 +633,6 @@ impl Parser {
         self.book.entrypoint = None;
 
         println!("BEND:\n {}", self.book.display_pretty());
-        println!("\n\nADTS:\n {:?}\n\n", self.book.adts);
-        println!("\n\nCTRS:\n {:?}\n\n", self.book.ctrs);
 
         let return_val = run(&self.book);
 
