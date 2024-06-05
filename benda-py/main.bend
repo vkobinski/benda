@@ -3,7 +3,11 @@ type Node = (Tree left) | (Tree right)
 
 type Tree = Leaf | Node
 
+def gen_tree(depth, n):
+  if depth == 0:
+    return Leaf/u24(n)
+  else:
+    return Node(gen_tree(depth - 1, n - 1), gen_tree(depth - 1, n + 1))
+
 def main:
-  tree = Tree/Leaf(2)
-  o_tree = Tree/Leaf(2)
-  return Tree/Node(tree, o_tree)
+  return gen_tree(10,2)

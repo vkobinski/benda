@@ -1,6 +1,6 @@
-use std::ops::{Add, Sub};
+use std::ops::{ Add, Sub };
 
-use pyo3::{pyclass, pymethods};
+use pyo3::{ pyclass, pymethods };
 
 #[pyclass(module = "benda_py")]
 #[allow(non_camel_case_types)]
@@ -8,7 +8,7 @@ use pyo3::{pyclass, pymethods};
 pub struct u24(u32);
 
 impl u24 {
-    const MAX: u32 = 0xFFFFFF;
+    const MAX: u32 = 0xffffff;
 
     pub fn new(value: u32) -> Self {
         Self(value & Self::MAX)
@@ -17,7 +17,6 @@ impl u24 {
     pub fn get(self) -> u32 {
         self.0
     }
-
 }
 
 impl std::fmt::Debug for u24 {
@@ -38,9 +37,9 @@ impl From<u32> for u24 {
     }
 }
 
-impl Into<u32> for u24 {
-    fn into(self) -> u32 {
-        self.0
+impl From<u24> for u32 {
+    fn from(val: u24) -> Self {
+        val.0
     }
 }
 
@@ -60,11 +59,8 @@ impl std::ops::Sub for u24 {
     }
 }
 
-
 #[pymethods]
 impl u24 {
-
-
     #[new]
     fn new_py(value: u32) -> Self {
         u24::new(value)
