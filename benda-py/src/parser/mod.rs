@@ -209,6 +209,7 @@ impl Parser {
 
             if is_adt {
                 fields.push(CtrField { nam: nam_l.clone(), rec: false });
+                fields.push(CtrField { nam: nam_r.clone(), rec: false });
             }
 
             return Some(FromExpr::CtrField(fields));
@@ -514,10 +515,12 @@ impl Parser {
                         let body = self.parse_expr_type(*assign.value);
 
                         if let Some(FromExpr::CtrField(ctr)) = body {
-                            adt.ctrs.insert(
-                                Name::new(format!("{}/{}", name, ctr.first().unwrap().nam)),
-                                ctr
-                            );
+                            for ct in ctr.clone() {
+                                adt.ctrs.insert(
+                                    Name::new(format!("{}/{}", name, ct.nam)),
+                                    ctr.clone()
+                                );
+                            }
                         }
 
                         self.add_adt(Name::new(name), adt);
