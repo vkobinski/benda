@@ -1,5 +1,6 @@
+use num_traits::ToPrimitive;
 use parser::Parser;
-use pyo3::{ prelude::*, types::{ PyFunction, PyString } };
+use pyo3::{ prelude::*, types::{ PyFunction, PyString, PyTuple } };
 use rustpython_parser::{ parse, Mode };
 use types::u24::u24;
 mod types;
@@ -18,18 +19,35 @@ fn switch() -> PyResult<String> {
 
 #[pyfunction]
 fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
-    let (name, filename) = match fun.downcast::<PyFunction>() {
-        Ok(inner) => {
-            let name = inner.getattr("__name__");
-            let filename = inner.getattr("__code__").unwrap().getattr("co_filename");
+    let arg_names_temp: Bound<PyAny>;
 
-            (name.unwrap(), filename.unwrap())
+    let (name, filename, arg_names, argcount) = match fun.clone().downcast::<PyFunction>() {
+        Ok(inner) => {
+            let name = inner.getattr("__name__").unwrap();
+            let code = inner.getattr("__code__").unwrap();
+            let filename = code.getattr("co_filename").unwrap();
+
+            arg_names_temp = code.getattr("co_varnames").unwrap();
+            let arg_names = arg_names_temp.downcast::<PyTuple>().unwrap();
+            let argcount = code.getattr("co_argcount").unwrap().to_string().parse::<u32>().unwrap();
+
+            (name, filename, arg_names, argcount)
         }
         Err(_) => todo!(),
     };
 
     let code = std::fs::read_to_string(filename.to_string()).unwrap();
     let module = parse(code.as_str(), Mode::Module, "main.py").unwrap();
+
+    let mut arg_list: Vec<String> = vec!();
+
+    for (index, arg) in arg_names.iter().enumerate() {
+        if index >= argcount.to_usize().unwrap() {
+            break;
+        }
+
+        arg_list.push(arg.to_string());
+    }
 
     let mut val: Option<Bound<PyString>> = None;
 
@@ -38,10 +56,8 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
             for stmt in mods.body.iter() {
                 if let rustpython_parser::ast::Stmt::FunctionDef(fun_def) = stmt {
                     if fun_def.name == name.to_string() {
-                        //let mut parser = Parser::new(mods.body.clone(), 0);
-
                         let mut parser = Parser::new(mods.body.clone(), 0);
-                        let return_val = parser.parse(fun_def.name.as_ref());
+                        let return_val = parser.parse(fun_def.name.as_ref(), &arg_list);
                         val = Some(PyString::new_bound(py, return_val.as_str()));
                     }
                 }

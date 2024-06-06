@@ -1,5 +1,5 @@
 use core::panic;
-use std::{ char::CharTryFromError, vec };
+use std::vec;
 
 use bend::{ fun::{ Adt, Book, CtrField, Name, Op, STRINGS }, imp::{ self, Expr, MatchArm, Stmt } };
 use indexmap::IndexMap;
@@ -27,8 +27,14 @@ impl FromExpr {
     }
 }
 
+#[derive(PartialEq)]
+enum CurContext {
+    Match,
+    Main,
+}
+
 struct Context {
-    //now: Option<rExpr>,
+    now: CurContext,
     vars: Vec<String>,
     subs: Vec<String>,
 }
@@ -132,9 +138,11 @@ impl Parser {
                 let mut name = n.id.to_string();
 
                 if let Some(ctx) = &self.ctx {
-                    for var in &ctx.vars {
-                        if *var == n.id.to_string() {
-                            name = format!("{}.{}", ctx.subs.first().unwrap(), var);
+                    if ctx.now == CurContext::Match {
+                        for var in &ctx.vars {
+                            if *var == n.id.to_string() {
+                                name = format!("{}.{}", ctx.subs.first().unwrap(), var);
+                            }
                         }
                     }
                 }
@@ -286,7 +294,11 @@ impl Parser {
                 rPattern::MatchOr(_) => todo!(),
             };
 
-            self.ctx = Some(Context { vars: patt.clone(), subs: vec!["tree".to_string()] });
+            self.ctx = Some(Context {
+                now: CurContext::Match,
+                vars: patt.clone(),
+                subs: vec!["tree".to_string()],
+            });
 
             let stmt_arm = self.parse_vec(&case.body.clone(), 0);
 
@@ -384,6 +396,12 @@ impl Parser {
                     .unwrap()
                     .id.to_string();
 
+                if let Some(ctx) = &self.ctx {
+                    if ctx.now == CurContext::Main && !ctx.vars.contains(&name) {
+                        return self.parse_vec(stmts, index + 1);
+                    }
+                }
+
                 let nxt = self.parse_vec(stmts, index + 1);
 
                 if let FromExpr::Expr(Expr::Call { fun, args: _, kwargs: _ }) = value.clone() {
@@ -459,6 +477,29 @@ impl Parser {
                     None => None,
                 }
             }
+            rStmt::Expr(expr) => {
+                if let Some(ctx) = &self.ctx {
+                    if ctx.now == CurContext::Main {
+                        let val = self.parse_expr_type(*expr.value.clone());
+
+                        if let Some(FromExpr::Expr(call)) = val {
+                            if let Expr::Call { fun, args: _, kwargs: _ } = call.clone() {
+                                if let imp::Expr::Var { nam } = *fun {
+                                    if nam.to_string() == *ctx.subs.first().unwrap() {
+                                        return Some(
+                                            FromExpr::Statement(Stmt::Return {
+                                                term: Box::new(call),
+                                            })
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                None
+            }
             rStmt::Match(m) => {
                 if let Some(val) = self.parse_match(m, stmts, &index) {
                     return Some(FromExpr::Statement(val));
@@ -499,7 +540,49 @@ impl Parser {
         self.book.adts.insert(nam.clone(), adt);
     }
 
-    pub fn parse(&mut self, _fun: &str) -> String {
+    pub fn parse_main(&mut self, fun_name: &str, py_args: &Vec<String>) -> Option<imp::Definition> {
+        let mut body: Option<imp::Stmt> = None;
+
+        self.ctx = Some(Context {
+            now: CurContext::Main,
+            vars: py_args.clone(),
+            subs: vec![fun_name.to_string()],
+        });
+
+        for (index, stmt) in self.statements.clone().iter().enumerate() {
+            if let rStmt::Assign(assi) = stmt {
+                if let rExpr::Name(target) = assi.targets.first().unwrap() {
+                    if py_args.contains(target.id.as_ref()) {
+                        let new_body = self.parse_vec(&self.statements.clone(), index);
+                        if let Some(FromExpr::Statement(st)) = new_body {
+                            body = Some(st);
+                            return Some(imp::Definition {
+                                name: Name::new("main"),
+                                params: vec![],
+                                body: body.unwrap(),
+                            });
+                        }
+                    }
+                }
+
+                if let rExpr::Call(call) = *assi.clone().value {
+                    if let rExpr::Name(func) = *call.func {
+                        if fun_name == func.id.to_string() {
+                            if call.args.is_empty() {
+                                panic!("The function must have arguments for Bend can run it.");
+                            } else {
+                                todo!();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn parse(&mut self, fun: &str, py_args: &Vec<String>) -> String {
         for stmt in self.statements.clone() {
             match stmt {
                 rStmt::FunctionDef(fun_def) => {
@@ -572,13 +655,7 @@ impl Parser {
                         for stmt in class.body {
                             match stmt {
                                 rStmt::AnnAssign(assign) => {
-                                    //let mut e_type = String::default();
                                     let mut target = String::default();
-
-                                    //if let rExpr::Name(nam) = *assign.annotation.clone() {
-                                    //    e_type = nam.id.to_string();
-                                    //}
-
                                     if let rExpr::Name(nam) = *assign.target.clone() {
                                         target = nam.id.to_string();
                                     }
@@ -613,20 +690,7 @@ impl Parser {
             self.book.defs.insert(fun_def.name.clone(), fun_def.clone());
         }
 
-        let main_def = imp::Definition {
-            name: Name::new("main"),
-            params: vec![],
-            body: imp::Stmt::Return {
-                term: Box::new(imp::Expr::Call {
-                    fun: Box::new(imp::Expr::Var { nam: Name::new("sum_tree") }),
-                    args: vec![
-                        imp::Expr::Num { val: bend::fun::Num::U24(0) },
-                        imp::Expr::Num { val: bend::fun::Num::U24(20) }
-                    ],
-                    kwargs: vec![],
-                }),
-            },
-        };
+        let main_def = self.parse_main(fun, py_args).unwrap();
 
         self.book.defs.insert(Name::new("main"), main_def.to_fun(true).unwrap());
 

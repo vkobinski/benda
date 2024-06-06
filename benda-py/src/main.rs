@@ -16,7 +16,7 @@ fn main() -> PyResult<()> {
     match module {
         rustpython_parser::ast::Mod::Module(mods) => {
             let mut parser = Parser::new(mods.body, 0);
-            parser.parse(&String::from("gen_tree"));
+            parser.parse(&String::from("sum_tree"), &vec!["tree".to_string()]);
         }
         _ => todo!(),
     }
