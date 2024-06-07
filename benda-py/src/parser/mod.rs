@@ -292,16 +292,19 @@ impl Parser {
                 rPattern::MatchOr(_) => todo!(),
             };
 
-            self.ctx = Some(Context {
-                now: CurContext::Match,
-                vars: patt.clone(),
-                subs: vec!["tree".to_string()],
-            });
+            let sub = self.parse_expr_type(*m.subject.clone());
+
+            if let Some(FromExpr::Expr(Expr::Var { nam })) = sub {
+                self.ctx = Some(Context {
+                    now: CurContext::Match,
+                    vars: patt.clone(),
+                    subs: vec![nam.to_string()],
+                });
+            }
 
             let stmt_arm = self.parse_vec(&case.body.clone(), 0);
 
             if let Some(pat) = pat {
-                // TODO: Fix adding the real name
                 let first = self.find_in_ctrs(&pat);
                 if let Some(FromExpr::Statement(a)) = stmt_arm {
                     let arm = MatchArm { lft: first, rgt: a };
@@ -327,7 +330,6 @@ impl Parser {
 
             let ret_match = imp::Stmt::Match {
                 arg: Box::new(subj.clone()),
-                // TODO(#7): Add binding
                 bind: name,
                 arms,
                 nxt: my_nxt,
@@ -406,6 +408,25 @@ impl Parser {
                     .id.to_string();
 
                 if let Some(ctx) = &self.ctx {
+                    if ctx.now == CurContext::Main {
+                        if
+                            let FromExpr::Expr(Expr::Call { fun, args: _, kwargs: _ }) =
+                                value.clone()
+                        {
+                            if let Expr::Var { nam } = *fun {
+                                if &nam.to_string() == ctx.subs.first().unwrap() {
+                                    if let FromExpr::Expr(e) = value.clone() {
+                                        return Some(
+                                            FromExpr::Statement(Stmt::Return {
+                                                term: Box::new(e),
+                                            })
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if ctx.now == CurContext::Main && !ctx.vars.contains(&name) {
                         return self.parse_vec(stmts, index + 1);
                     }

@@ -27,5 +27,7 @@ def sum_tree(tree):
             return value
         
        
-tree = gen_tree(10, 50)
-sum_tree(tree)
+tree = gen_tree(20, 50)
+val = sum_tree(tree)
+print("Somando a árvore:")
+print(val)
