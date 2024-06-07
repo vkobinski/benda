@@ -1,3 +1,4 @@
+#![allow(clippy::cmp_owned)]
 use core::panic;
 use std::vec;
 
@@ -62,7 +63,6 @@ impl Parser {
             rExpr::Attribute(att) => {
                 if let Some(lib) = self.parse_expr_type(*att.value).unwrap().get_var_name() {
                     let fun = att.attr.to_string();
-                    #[allow(clippy::cmp_owned)]
                     if lib.to_string() == "benda" && fun == "switch" {
                         return Some(
                             FromExpr::Expr(Expr::Call {
@@ -342,7 +342,7 @@ impl Parser {
         &mut self,
         name: &String,
         nxt: &Option<FromExpr>,
-        stmts: &Vec<rStmt<TextRange>>,
+        stmts: &[rStmt<TextRange>],
         index: &usize
     ) -> Option<FromExpr> {
         let mut arms: Vec<imp::Stmt> = vec![];
@@ -415,7 +415,6 @@ impl Parser {
 
                 if let FromExpr::Expr(Expr::Call { fun, args: _, kwargs: _ }) = value.clone() {
                     if let Expr::Var { nam } = *fun {
-                        #[allow(clippy::cmp_owned)]
                         if nam.to_string() == "switch" {
                             return self.parse_switch(&name, &nxt, stmts, &index);
                         }
@@ -549,12 +548,10 @@ impl Parser {
         self.book.adts.insert(nam.clone(), adt);
     }
 
-    pub fn parse_main(&mut self, fun_name: &str, py_args: &Vec<String>) -> Option<imp::Definition> {
-        let mut body: Option<imp::Stmt> = None;
-
+    pub fn parse_main(&mut self, fun_name: &str, py_args: &[String]) -> Option<imp::Definition> {
         self.ctx = Some(Context {
             now: CurContext::Main,
-            vars: py_args.clone(),
+            vars: py_args.to_vec(),
             subs: vec![fun_name.to_string()],
         });
 
@@ -564,11 +561,10 @@ impl Parser {
                     if py_args.contains(target.id.as_ref()) {
                         let new_body = self.parse_vec(&self.statements.clone(), index);
                         if let Some(FromExpr::Statement(st)) = new_body {
-                            body = Some(st);
                             return Some(imp::Definition {
                                 name: Name::new("main"),
                                 params: vec![],
-                                body: body.unwrap(),
+                                body: st,
                             });
                         }
                     }
@@ -591,7 +587,7 @@ impl Parser {
         None
     }
 
-    pub fn parse(&mut self, fun: &str, py_args: &Vec<String>) -> String {
+    pub fn parse(&mut self, fun: &str, py_args: &[String]) -> String {
         for stmt in self.statements.clone() {
             match stmt {
                 rStmt::FunctionDef(fun_def) => {
@@ -704,9 +700,6 @@ impl Parser {
         self.book.defs.insert(Name::new("main"), main_def.to_fun(true).unwrap());
 
         self.book.entrypoint = None;
-
-        println!("ADTS {:?}", self.book.adts);
-        println!("CTRS {:?}", self.book.ctrs);
 
         println!("BEND:\n {}", self.book.display_pretty());
 
