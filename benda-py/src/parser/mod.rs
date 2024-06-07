@@ -50,7 +50,7 @@ impl Parser {
     pub fn new(statements: Vec<rStmt<TextRange>>, _index: usize) -> Self {
         Self {
             statements,
-            //book:  fun::Book::builtins(),
+            //book: bend::fun::Book::builtins(),
             book: Book::default(),
             definitions: vec![],
             ctx: None,
@@ -166,12 +166,10 @@ impl Parser {
                         }
                     }
 
-                    // TODO: Fix this name
-                    let new_name = Name::new(format!("Tree/{}", nam));
-                    if let Some(_val) = self.book.ctrs.get(&new_name.clone()) {
+                    if let Some(val) = self.find_in_ctrs(nam) {
                         return Some(
                             FromExpr::Expr(imp::Expr::Constructor {
-                                name: new_name.clone(),
+                                name: val.clone(),
                                 args,
                                 kwargs: vec![],
                             })
@@ -304,7 +302,7 @@ impl Parser {
 
             if let Some(pat) = pat {
                 // TODO: Fix adding the real name
-                let first = Some(Name::new(format!("{}/{}", "Tree", pat)));
+                let first = self.find_in_ctrs(&pat);
                 if let Some(FromExpr::Statement(a)) = stmt_arm {
                     let arm = MatchArm { lft: first, rgt: a };
                     arms.push(arm);
@@ -372,6 +370,17 @@ impl Parser {
                         }),
                     })
                 );
+            }
+        }
+        None
+    }
+
+    fn find_in_ctrs(&self, nam: &Name) -> Option<Name> {
+        for ctr in self.book.ctrs.clone() {
+            for ctr_name in ctr.0.split("/") {
+                if nam.to_string() == *ctr_name.to_string() {
+                    return Some(ctr.0);
+                }
             }
         }
         None
@@ -695,6 +704,9 @@ impl Parser {
         self.book.defs.insert(Name::new("main"), main_def.to_fun(true).unwrap());
 
         self.book.entrypoint = None;
+
+        println!("ADTS {:?}", self.book.adts);
+        println!("CTRS {:?}", self.book.ctrs);
 
         println!("BEND:\n {}", self.book.display_pretty());
 

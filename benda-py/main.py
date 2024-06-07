@@ -27,5 +27,5 @@ def sum_tree(tree):
             return value
         
        
-tree = gen_tree(2, 5)
+tree = gen_tree(30, 20)
 sum_tree(tree)

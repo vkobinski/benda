@@ -18,7 +18,7 @@ fn switch() -> PyResult<String> {
 }
 
 #[pyfunction]
-fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
+fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<String> {
     let arg_names_temp: Bound<PyAny>;
 
     let (name, filename, arg_names, argcount) = match fun.clone().downcast::<PyFunction>() {
@@ -65,10 +65,9 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<PyObject> {
         }
         _ => unimplemented!(),
     }
+    println!("Result {:?}", val);
 
-    println!("Val: {:?}", val);
-
-    Ok(val.unwrap().to_object(py))
+    Ok(val.unwrap().to_string())
 }
 
 /// A Python module implemented in Rust.
