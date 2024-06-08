@@ -1,6 +1,6 @@
 use num_traits::ToPrimitive;
 use parser::Parser;
-use pyo3::{ prelude::*, types::{ PyFunction, PyString, PyTuple } };
+use pyo3::{ prelude::*, types::{ PyDict, PyFunction, PyString, PyTuple } };
 use rustpython_parser::{ parse, Mode };
 use types::u24::u24;
 mod types;
@@ -8,13 +8,35 @@ mod parser;
 mod benda_ffi;
 
 #[pyfunction]
-fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
-    Ok((a + b).to_string())
-}
-
-#[pyfunction]
 fn switch() -> PyResult<String> {
     Ok("Ok".to_string())
+}
+
+#[pyclass(name = "bjit_test")]
+pub struct PyBjit {
+    wraps: Py<PyAny>,
+}
+
+#[pymethods]
+impl PyBjit {
+    #[new]
+    fn __new__(wraps: Py<PyAny>) -> Self {
+        PyBjit {
+            wraps,
+        }
+    }
+    #[pyo3(signature = (*args, **kwargs))]
+    fn __call__(
+        &self,
+        py: Python<'_>,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>
+    ) -> PyResult<Py<PyAny>> {
+        println!("kwargs: {:?}", kwargs);
+        println!("args: {:?}", args);
+
+        todo!()
+    }
 }
 
 #[pyfunction]
@@ -49,6 +71,8 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
         arg_list.push(arg.to_string());
     }
 
+    println!("Mod: {:?}", module);
+
     let mut val: Option<Bound<PyString>> = None;
 
     match module {
@@ -79,12 +103,11 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
     Ok(fun)
 }
 
-/// A Python module implemented in Rust.
 #[pymodule]
 fn benda(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     m.add_function(wrap_pyfunction!(bjit, m)?)?;
     m.add_function(wrap_pyfunction!(switch, m)?)?;
+    m.add_class::<PyBjit>()?;
     m.add_class::<u24>()?;
     Ok(())
 }
