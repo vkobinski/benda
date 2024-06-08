@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.21.2", features = [] }
-bend-lang = "0.2.18"
+bend-lang = "0.2.33"
 num-bigint = "0.4.5"
 num-traits = "0.2.19"
 rustpython-parser = "0.3.1"

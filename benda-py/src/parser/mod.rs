@@ -96,7 +96,7 @@ impl Parser {
 
                 if let (FromExpr::Expr(left), FromExpr::Expr(right)) = (left, right) {
                     return Some(
-                        FromExpr::Expr(Expr::Bin {
+                        FromExpr::Expr(Expr::Opr {
                             op,
                             lhs: Box::new(left),
                             rhs: Box::new(right),
@@ -168,7 +168,7 @@ impl Parser {
 
                     if let Some(val) = self.find_in_ctrs(nam) {
                         return Some(
-                            FromExpr::Expr(imp::Expr::Constructor {
+                            FromExpr::Expr(imp::Expr::Ctr {
                                 name: val.clone(),
                                 args,
                                 kwargs: vec![],
@@ -235,7 +235,7 @@ impl Parser {
         }
 
         if let (FromExpr::Expr(left), FromExpr::Expr(right)) = (left, right) {
-            let operation = imp::Expr::Bin {
+            let operation = imp::Expr::Opr {
                 op,
                 lhs: Box::new(left),
                 rhs: Box::new(right),
@@ -330,9 +330,11 @@ impl Parser {
 
             let ret_match = imp::Stmt::Match {
                 arg: Box::new(subj.clone()),
-                bind: name,
+                bnd: name,
                 arms,
                 nxt: my_nxt,
+                with_bnd: vec![],
+                with_arg: vec![],
             };
 
             return Some(ret_match);
@@ -361,7 +363,7 @@ impl Parser {
                 return Some(
                     FromExpr::Statement(imp::Stmt::Switch {
                         arg: Box::new(expr),
-                        bind: Some(Name::new(name)),
+                        bnd: Some(Name::new(name)),
                         arms,
                         nxt: nxt.clone().map(|n| {
                             if let FromExpr::Statement(n) = n {
@@ -370,6 +372,8 @@ impl Parser {
 
                             todo!()
                         }),
+                        with_bnd: vec![],
+                        with_arg: vec![],
                     })
                 );
             }

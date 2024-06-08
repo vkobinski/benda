@@ -6,7 +6,7 @@ use bend::{
 };
 
 pub fn run(book: &Book) -> Option<(Term, String, Diagnostics)> {
-    let run_opts = RunOpts { linear_readback: false, pretty: false };
+    let run_opts = RunOpts::default();
     let compile_opts = CompileOpts::default().set_all();
     let diagnostics_cfg = DiagnosticsConfig::default();
     let args = None;
