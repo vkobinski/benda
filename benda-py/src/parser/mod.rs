@@ -3,7 +3,7 @@ use core::panic;
 use std::vec;
 
 use bend::{
-    fun::{Adt, Book, CtrField, Definition, Name, Op, Rule, STRINGS},
+    fun::{self, Adt, Book, CtrField, Definition, Name, Op, Rule, STRINGS},
     imp::{self, AssignPattern, Expr, MatchArm, Stmt},
 };
 use indexmap::IndexMap;
@@ -294,9 +294,7 @@ impl Parser {
                         _ => None,
                     }
                 }
-                rPattern::MatchSingleton(_) => todo!(),
-                rPattern::MatchSequence(_) => todo!(),
-                rPattern::MatchMapping(_) => todo!(),
+
                 rPattern::MatchClass(class) => {
                     let expr = self.parse_expr_type(*class.cls.clone()).unwrap();
 
@@ -313,6 +311,9 @@ impl Parser {
                         _ => None,
                     }
                 }
+                rPattern::MatchSingleton(_) => todo!(),
+                rPattern::MatchSequence(_) => todo!(),
+                rPattern::MatchMapping(_) => todo!(),
                 rPattern::MatchStar(_) => todo!(),
                 rPattern::MatchAs(_) => todo!(),
                 rPattern::MatchOr(_) => todo!(),
@@ -407,7 +408,7 @@ impl Parser {
 
     fn find_in_ctrs(&self, nam: &Name) -> Option<Name> {
         for ctr in self.book.ctrs.clone() {
-            for ctr_name in ctr.0.split("/") {
+            for ctr_name in ctr.0.split('/') {
                 if nam.to_string() == *ctr_name.to_string() {
                     return Some(ctr.0);
                 }
@@ -610,6 +611,19 @@ impl Parser {
             vars: py_args.to_vec(),
             subs: vec![fun_name.to_string()],
         });
+
+        let tree = self.fun_args.first().unwrap().1.clone().to_fun();
+
+        let tree_def = fun::Definition {
+            name: Name::new("tree"),
+            rules: vec![Rule {
+                pats: vec![],
+                body: tree,
+            }],
+            builtin: false,
+        };
+
+        self.book.defs.insert(Name::new("tree"), tree_def);
 
         let pat = AssignPattern::Var(Name::new(self.fun_args.first().unwrap().0.clone()));
         for (index, stmt) in self.statements.clone().iter().skip(self.index).enumerate() {

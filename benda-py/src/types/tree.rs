@@ -20,9 +20,7 @@ pub struct Leaf {
 
 impl BendType for Leaf {
     fn to_bend(&self) -> imp::Expr {
-        imp::Expr::Num {
-            val: fun::Num::U24(self.value.get()),
-        }
+        self.value.to_bend()
     }
 }
 
