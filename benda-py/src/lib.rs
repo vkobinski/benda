@@ -1,8 +1,9 @@
+use bend::imp;
 use num_traits::ToPrimitive;
 use parser::Parser;
 use pyo3::{ prelude::*, types::{ PyDict, PyFunction, PyString, PyTuple, PyType } };
 use rustpython_parser::{ parse, Mode };
-use types::{ tree::{ Leaf, Node, TreeType }, u24::u24 };
+use types::{ tree::{ Leaf, Node, TreeType }, u24::u24, BendType };
 use types::tree::Tree;
 mod types;
 mod parser;
@@ -13,7 +14,7 @@ fn switch() -> PyResult<String> {
     Ok("Ok".to_string())
 }
 
-#[pyclass(name = "bjit_test")]
+#[pyclass(name = "bjit")]
 pub struct PyBjit {
     wraps: Py<PyAny>,
 }
@@ -33,31 +34,86 @@ impl PyBjit {
         args: &Bound<'_, PyTuple>,
         kwargs: Option<&Bound<'_, PyDict>>
     ) -> PyResult<Py<PyAny>> {
-        for arg in args.downcast::<PyTuple>().unwrap().iter() {
+        let arg_names_temp: Bound<PyAny>;
 
+        let (name, filename, arg_names, argcount) = match
+            self.wraps.downcast_bound::<PyFunction>(py)
+        {
+            Ok(inner) => {
+                let name = inner.getattr("__name__").unwrap();
+                let code = inner.getattr("__code__").unwrap();
+                let filename = code.getattr("co_filename").unwrap();
+
+                arg_names_temp = code.getattr("co_varnames").unwrap();
+                let arg_names = arg_names_temp.downcast::<PyTuple>().unwrap();
+                let argcount = code
+                    .getattr("co_argcount")
+                    .unwrap()
+                    .to_string()
+                    .parse::<u32>()
+                    .unwrap();
+
+                (name, filename, arg_names, argcount)
+            }
+            Err(_) => todo!(),
+        };
+
+        let mut arg_list: Vec<String> = vec!();
+
+        for (index, arg) in arg_names.iter().enumerate() {
+            if index >= argcount.to_usize().unwrap() {
+                break;
+            }
+
+            arg_list.push(arg.to_string());
+        }
+
+        let mut parsed_types: Vec<(String, imp::Expr)> = vec![];
+
+        for (index, arg) in args.downcast::<PyTuple>().unwrap().iter().enumerate() {
             let t_type = arg.get_type();
+            let name = arg.getattr("__name__");
             let name = t_type.name().unwrap();
 
             let arg_type = TreeType::from(name.to_string());
 
-            println!("type {:?}", arg_type);
-
             if let TreeType::Node = arg_type {
-
-                let node = arg.downcast::<Node>().unwrap();
-
-                let a = node.extract::<Node>().unwrap();
-                println!("{:?}", a);
-
+                let node = arg.downcast::<Node>().unwrap().extract::<Node>().unwrap().to_bend();
+                parsed_types.push((arg_list.get(index).unwrap().to_string(), node));
             }
         }
 
-        todo!()
+        let code = std::fs::read_to_string(filename.to_string()).unwrap();
+        let module = parse(code.as_str(), Mode::Module, "main.py").unwrap();
+
+        let mut val: Option<Bound<PyString>> = None;
+
+        match module {
+            rustpython_parser::ast::Mod::Module(mods) => {
+                for (index, stmt) in mods.body.iter().enumerate() {
+                    if let rustpython_parser::ast::Stmt::FunctionDef(fun_def) = stmt {
+                        if fun_def.name == name.to_string() {
+                            let mut parser = Parser::new(
+                                mods.body.clone(),
+                                index,
+                                parsed_types.clone()
+                            );
+                            let return_val = parser.parse(fun_def.name.as_ref(), &[]);
+                            val = Some(PyString::new_bound(py, return_val.as_str()));
+                            break;
+                        }
+                    }
+                }
+            }
+            _ => unimplemented!(),
+        }
+
+        Ok(val.unwrap().into())
     }
 }
 
 #[pyfunction]
-fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
+fn bjit_test(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
     let arg_names_temp: Bound<PyAny>;
 
     let (name, filename, arg_names, argcount) = match fun.clone().downcast::<PyFunction>() {
@@ -97,9 +153,9 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
             for stmt in mods.body.iter() {
                 if let rustpython_parser::ast::Stmt::FunctionDef(fun_def) = stmt {
                     if fun_def.name == name.to_string() {
-                        let mut parser = Parser::new(mods.body.clone(), 0);
-                        let return_val = parser.parse(fun_def.name.as_ref(), &arg_list);
-                        val = Some(PyString::new_bound(py, return_val.as_str()));
+                        //let mut parser = Parser::new(mods.body.clone(), 0);
+                        //let return_val = parser.parse(fun_def.name.as_ref(), &arg_list);
+                        //val = Some(PyString::new_bound(py, return_val.as_str()));
                     }
                 }
             }
@@ -122,7 +178,7 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
 
 #[pymodule]
 fn benda(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(bjit, m)?)?;
+    m.add_function(wrap_pyfunction!(bjit_test, m)?)?;
     m.add_function(wrap_pyfunction!(switch, m)?)?;
     m.add_class::<PyBjit>()?;
     m.add_class::<u24>()?;

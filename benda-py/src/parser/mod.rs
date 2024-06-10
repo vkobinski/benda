@@ -2,7 +2,10 @@
 use core::panic;
 use std::vec;
 
-use bend::{ fun::{ Adt, Book, CtrField, Name, Op, STRINGS }, imp::{ self, Expr, MatchArm, Stmt } };
+use bend::{
+    fun::{ Adt, Book, CtrField, Name, Op, STRINGS },
+    imp::{ self, AssignPattern, Expr, MatchArm, Stmt },
+};
 use indexmap::IndexMap;
 use rustpython_parser::{ ast::{ located, ExprBinOp, StmtAssign, StmtMatch }, text_size::TextRange };
 
@@ -45,15 +48,23 @@ pub struct Parser {
     book: Book,
     definitions: Vec<imp::Definition>,
     ctx: Option<Context>,
+    index: usize,
+    fun_args: Vec<(String, imp::Expr)>,
 }
 
 impl Parser {
-    pub fn new(statements: Vec<rStmt<TextRange>>, _index: usize) -> Self {
+    pub fn new(
+        statements: Vec<rStmt<TextRange>>,
+        index: usize,
+        fun_args: Vec<(String, imp::Expr)>
+    ) -> Self {
         Self {
             statements,
             book: bend::fun::Book::builtins(),
             definitions: vec![],
+            index,
             ctx: None,
+            fun_args,
         }
     }
 
@@ -585,16 +596,23 @@ impl Parser {
             subs: vec![fun_name.to_string()],
         });
 
-        for (index, stmt) in self.statements.clone().iter().enumerate() {
+        let pat = AssignPattern::Var(Name::new(self.fun_args.first().unwrap().0.clone()));
+        for (index, stmt) in self.statements.clone().iter().skip(self.index).enumerate() {
             if let rStmt::Assign(assi) = stmt {
                 if let rExpr::Name(target) = assi.targets.first().unwrap() {
                     if py_args.contains(target.id.as_ref()) {
                         let new_body = self.parse_vec(&self.statements.clone(), index);
+
                         if let Some(FromExpr::Statement(st)) = new_body {
+                            let first = imp::Stmt::Assign {
+                                pat,
+                                val: Box::new(self.fun_args.first().unwrap().1.clone()),
+                                nxt: Some(Box::new(st)),
+                            };
                             return Some(imp::Definition {
                                 name: Name::new("main"),
                                 params: vec![],
-                                body: st,
+                                body: first,
                             });
                         }
                     }
@@ -606,7 +624,45 @@ impl Parser {
                             if call.args.is_empty() {
                                 panic!("The function must have arguments for Bend can run it.");
                             } else {
-                                todo!();
+                                let new_body = self.parse_vec(&self.statements.clone(), index);
+
+                                if let Some(FromExpr::Statement(st)) = new_body {
+                                    let first = imp::Stmt::Assign {
+                                        pat,
+                                        val: Box::new(self.fun_args.first().unwrap().1.clone()),
+                                        nxt: Some(Box::new(st)),
+                                    };
+                                    return Some(imp::Definition {
+                                        name: Name::new("main"),
+                                        params: vec![],
+                                        body: first,
+                                    });
+                                }
+
+                                let first = imp::Stmt::Assign {
+                                    pat,
+                                    val: Box::new(self.fun_args.first().unwrap().1.clone()),
+                                    nxt: Some(
+                                        Box::new(Stmt::Return {
+                                            term: Box::new(Expr::Call {
+                                                fun: Box::new(imp::Expr::Var {
+                                                    nam: Name::new("sum_tree"),
+                                                }),
+                                                args: vec![Expr::Var {
+                                                    nam: Name::new(
+                                                        self.fun_args.first().unwrap().0.to_string()
+                                                    ),
+                                                }],
+                                                kwargs: vec![],
+                                            }),
+                                        })
+                                    ),
+                                };
+                                return Some(imp::Definition {
+                                    name: Name::new("main"),
+                                    params: vec![],
+                                    body: first,
+                                });
                             }
                         }
                     }

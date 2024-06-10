@@ -1,13 +1,21 @@
 use core::panic;
+use std::vec;
 
+use bend::{fun, imp};
 use pyo3::{ pyclass, pymethods, types::{ PyAnyMethods, PyTuple, PyTypeMethods }, Bound };
 
-use super::u24::u24;
+use super::{u24::u24, BendType};
 
 #[derive(Clone, Debug)]
 #[pyclass(module = "benda", name = "Leaf")]
 pub struct Leaf {
     pub value: u24,
+}
+
+impl BendType for Leaf {
+    fn to_bend(&self) -> imp::Expr {
+        imp::Expr::Num { val: fun::Num::U24(self.value.get()) }
+    }
 }
 
 #[pymethods]
@@ -106,11 +114,44 @@ impl Node {
 
 }
 
+impl BendType for Node {
+    fn to_bend(&self) -> imp::Expr {
+        let mut trees: Vec<imp::Expr> = vec![];
+
+        if let Some(left) = &self.left {
+            trees.push(left.to_bend());
+        }
+
+        if let Some(right) = &self.right {
+            trees.push(right.to_bend());
+        }
+
+        imp::Expr::Ctr { name: fun::Name::new("Tree/Node"), args: trees, kwargs: vec![] }
+ 
+    }
+
+}
+
 #[derive(Clone, Debug)]
 #[pyclass(module = "benda", name = "Tree")]
 pub struct Tree {
     pub leaf: Option<Leaf>,
     pub node: Option<Node>,
+}
+
+
+impl BendType for Tree {
+    fn to_bend(&self) -> bend::imp::Expr {
+        if let Some(leaf) = &self.leaf {
+            return leaf.to_bend();
+        }
+
+        if let Some(node) = &self.node {
+            return node.to_bend();
+        }
+
+        todo!()
+    }
 }
 
 #[derive(Debug)]
@@ -119,6 +160,7 @@ pub enum TreeType {
     Node,
     Tree,
 }
+
 
 impl From<String> for TreeType {
     fn from(value: String) -> Self {
