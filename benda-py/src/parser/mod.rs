@@ -532,6 +532,8 @@ impl Parser {
                         }));
                     }
 
+                    println!("Expr type: {:?}", term);
+
                     todo!()
                 }
                 None => None,
@@ -612,36 +614,34 @@ impl Parser {
             subs: vec![fun_name.to_string()],
         });
 
-        let tree = self.fun_args.first().unwrap().1.clone().to_fun();
+        for (name, expr) in &self.fun_args {
+            let u_type = expr.clone().to_fun();
 
-        let tree_def = fun::Definition {
-            name: Name::new("tree"),
-            rules: vec![Rule {
-                pats: vec![],
-                body: tree,
-            }],
-            builtin: false,
-        };
+            let nam = Name::new(name.to_string());
 
-        self.book.defs.insert(Name::new("tree"), tree_def);
+            let def = fun::Definition {
+                name: nam.clone(),
+                rules: vec![Rule {
+                    pats: vec![],
+                    body: u_type,
+                }],
+                builtin: false,
+            };
 
-        let pat = AssignPattern::Var(Name::new(self.fun_args.first().unwrap().0.clone()));
+            self.book.defs.insert(nam, def);
+        }
+
         for (index, stmt) in self.statements.clone().iter().skip(self.index).enumerate() {
             if let rStmt::Assign(assi) = stmt {
                 if let rExpr::Name(target) = assi.targets.first().unwrap() {
                     if py_args.contains(target.id.as_ref()) {
-                        let new_body = self.parse_vec(&self.statements.clone(), index);
+                        let body = self.parse_vec(&self.statements.clone(), index);
 
-                        if let Some(FromExpr::Statement(st)) = new_body {
-                            let first = imp::Stmt::Assign {
-                                pat,
-                                val: Box::new(self.fun_args.first().unwrap().1.clone()),
-                                nxt: Some(Box::new(st)),
-                            };
+                        if let Some(FromExpr::Statement(st)) = body {
                             return Some(imp::Definition {
                                 name: Name::new("main"),
                                 params: vec![],
-                                body: first,
+                                body: st,
                             });
                         }
                     }
@@ -656,34 +656,25 @@ impl Parser {
                                 let new_body = self.parse_vec(&self.statements.clone(), index);
 
                                 if let Some(FromExpr::Statement(st)) = new_body {
-                                    let first = imp::Stmt::Assign {
-                                        pat,
-                                        val: Box::new(self.fun_args.first().unwrap().1.clone()),
-                                        nxt: Some(Box::new(st)),
-                                    };
                                     return Some(imp::Definition {
                                         name: Name::new("main"),
                                         params: vec![],
-                                        body: first,
+                                        body: st,
                                     });
                                 }
 
-                                let first = imp::Stmt::Assign {
-                                    pat,
-                                    val: Box::new(self.fun_args.first().unwrap().1.clone()),
-                                    nxt: Some(Box::new(Stmt::Return {
-                                        term: Box::new(Expr::Call {
-                                            fun: Box::new(imp::Expr::Var {
-                                                nam: Name::new("sum_tree"),
-                                            }),
-                                            args: vec![Expr::Var {
-                                                nam: Name::new(
-                                                    self.fun_args.first().unwrap().0.to_string(),
-                                                ),
-                                            }],
-                                            kwargs: vec![],
+                                let first = Stmt::Return {
+                                    term: Box::new(Expr::Call {
+                                        fun: Box::new(imp::Expr::Var {
+                                            nam: Name::new("sum_tree"),
                                         }),
-                                    })),
+                                        args: vec![Expr::Var {
+                                            nam: Name::new(
+                                                self.fun_args.first().unwrap().0.to_string(),
+                                            ),
+                                        }],
+                                        kwargs: vec![],
+                                    }),
                                 };
                                 return Some(imp::Definition {
                                     name: Name::new("main"),

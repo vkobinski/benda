@@ -1,8 +1,7 @@
 use bend::{
-    diagnostics::{ Diagnostics, DiagnosticsConfig },
-    fun::{ Book, Term },
-    CompileOpts,
-    RunOpts,
+    diagnostics::{Diagnostics, DiagnosticsConfig},
+    fun::{Book, Term},
+    CompileOpts, RunOpts,
 };
 
 pub fn run(book: &Book) -> Option<(Term, String, Diagnostics)> {
@@ -11,5 +10,13 @@ pub fn run(book: &Book) -> Option<(Term, String, Diagnostics)> {
     let diagnostics_cfg = DiagnosticsConfig::default();
     let args = None;
 
-    bend::run_book(book.clone(), run_opts, compile_opts, diagnostics_cfg, args, "run").unwrap()
+    bend::run_book(
+        book.clone(),
+        run_opts,
+        compile_opts,
+        diagnostics_cfg,
+        args,
+        "run",
+    )
+    .unwrap()
 }

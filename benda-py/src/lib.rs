@@ -1,13 +1,21 @@
 use bend::imp;
 use num_traits::ToPrimitive;
 use parser::Parser;
-use pyo3::{ prelude::*, types::{ PyDict, PyFunction, PyString, PyTuple, PyType } };
-use rustpython_parser::{ parse, Mode };
-use types::{ tree::{ Leaf, Node, TreeType }, u24::u24, BendType };
-use types::tree::Tree;
-mod types;
-mod parser;
+use pyo3::{
+    prelude::*,
+    types::{PyDict, PyFunction, PyString, PyTuple, PyType},
+};
+use rustpython_parser::{parse, Mode};
+use types::{
+    extract_inner,
+    tree::{Leaf, Node, TreeType},
+    u24::u24,
+    BendType,
+};
+use types::{tree::Tree, BuiltinType};
 mod benda_ffi;
+mod parser;
+mod types;
 
 #[pyfunction]
 fn switch() -> PyResult<String> {
@@ -23,42 +31,39 @@ pub struct PyBjit {
 impl PyBjit {
     #[new]
     fn __new__(wraps: Py<PyAny>) -> Self {
-        PyBjit {
-            wraps,
-        }
+        PyBjit { wraps }
     }
     #[pyo3(signature = (*args, **kwargs))]
     fn __call__(
         &self,
         py: Python<'_>,
         args: &Bound<'_, PyTuple>,
-        kwargs: Option<&Bound<'_, PyDict>>
+        kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Py<PyAny>> {
         let arg_names_temp: Bound<PyAny>;
 
-        let (name, filename, arg_names, argcount) = match
-            self.wraps.downcast_bound::<PyFunction>(py)
-        {
-            Ok(inner) => {
-                let name = inner.getattr("__name__").unwrap();
-                let code = inner.getattr("__code__").unwrap();
-                let filename = code.getattr("co_filename").unwrap();
+        let (name, filename, arg_names, argcount) =
+            match self.wraps.downcast_bound::<PyFunction>(py) {
+                Ok(inner) => {
+                    let name = inner.getattr("__name__").unwrap();
+                    let code = inner.getattr("__code__").unwrap();
+                    let filename = code.getattr("co_filename").unwrap();
 
-                arg_names_temp = code.getattr("co_varnames").unwrap();
-                let arg_names = arg_names_temp.downcast::<PyTuple>().unwrap();
-                let argcount = code
-                    .getattr("co_argcount")
-                    .unwrap()
-                    .to_string()
-                    .parse::<u32>()
-                    .unwrap();
+                    arg_names_temp = code.getattr("co_varnames").unwrap();
+                    let arg_names = arg_names_temp.downcast::<PyTuple>().unwrap();
+                    let argcount = code
+                        .getattr("co_argcount")
+                        .unwrap()
+                        .to_string()
+                        .parse::<u32>()
+                        .unwrap();
 
-                (name, filename, arg_names, argcount)
-            }
-            Err(_) => todo!(),
-        };
+                    (name, filename, arg_names, argcount)
+                }
+                Err(_) => todo!(),
+            };
 
-        let mut arg_list: Vec<String> = vec!();
+        let mut arg_list: Vec<String> = vec![];
 
         for (index, arg) in arg_names.iter().enumerate() {
             if index >= argcount.to_usize().unwrap() {
@@ -75,12 +80,10 @@ impl PyBjit {
             let name = arg.getattr("__name__");
             let name = t_type.name().unwrap();
 
-            let arg_type = TreeType::from(name.to_string());
+            let t_type = BuiltinType::from(name.to_string());
 
-            if let TreeType::Node = arg_type {
-                let node = arg.downcast::<Node>().unwrap().extract::<Node>().unwrap().to_bend();
-                parsed_types.push((arg_list.get(index).unwrap().to_string(), node));
-            }
+            let new_arg = extract_inner::<BuiltinType>(arg).unwrap().to_bend();
+            parsed_types.push((arg_list.get(index).unwrap().to_string(), arg));
         }
 
         let code = std::fs::read_to_string(filename.to_string()).unwrap();
@@ -93,11 +96,8 @@ impl PyBjit {
                 for (index, stmt) in mods.body.iter().enumerate() {
                     if let rustpython_parser::ast::Stmt::FunctionDef(fun_def) = stmt {
                         if fun_def.name == name.to_string() {
-                            let mut parser = Parser::new(
-                                mods.body.clone(),
-                                index,
-                                parsed_types.clone()
-                            );
+                            let mut parser =
+                                Parser::new(mods.body.clone(), index, parsed_types.clone());
                             let return_val = parser.parse(fun_def.name.as_ref(), &[]);
                             val = Some(PyString::new_bound(py, return_val.as_str()));
                             break;
@@ -124,7 +124,12 @@ fn bjit_test(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
 
             arg_names_temp = code.getattr("co_varnames").unwrap();
             let arg_names = arg_names_temp.downcast::<PyTuple>().unwrap();
-            let argcount = code.getattr("co_argcount").unwrap().to_string().parse::<u32>().unwrap();
+            let argcount = code
+                .getattr("co_argcount")
+                .unwrap()
+                .to_string()
+                .parse::<u32>()
+                .unwrap();
 
             (name, filename, arg_names, argcount)
         }
@@ -134,7 +139,7 @@ fn bjit_test(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
     let code = std::fs::read_to_string(filename.to_string()).unwrap();
     let module = parse(code.as_str(), Mode::Module, "main.py").unwrap();
 
-    let mut arg_list: Vec<String> = vec!();
+    let mut arg_list: Vec<String> = vec![];
 
     for (index, arg) in arg_names.iter().enumerate() {
         if index >= argcount.to_usize().unwrap() {
@@ -165,13 +170,18 @@ fn bjit_test(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
 
     let fun: Py<PyAny> = PyModule::from_code_bound(
         py,
-        format!("def test({}):
-            return {}", "tree", val.clone().unwrap()).as_str(),
+        format!(
+            "def test({}):
+            return {}",
+            "tree",
+            val.clone().unwrap()
+        )
+        .as_str(),
         "",
-        ""
+        "",
     )?
-        .getattr("test")?
-        .into();
+    .getattr("test")?
+    .into();
 
     Ok(fun)
 }
