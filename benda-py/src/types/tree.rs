@@ -36,18 +36,12 @@ pub struct Node {
 }
 
 fn extract_tree<'py, T: PyTypeCheck + FromPyObject<'py>>(arg: Bound<'py, PyAny>) -> Option<T> {
-
     let tree = arg.downcast::<T>();
-
     if let Ok(tree) = tree {
-
         let tree = <T as FromPyObject>::extract_bound(tree.as_any());
-
         return Some(tree.unwrap());
     }
-
     None
-
 }
 
 #[pymethods]
@@ -63,51 +57,20 @@ impl Node {
 
             let tree_type = TreeType::from(name.to_string());
 
-            match tree_type {
-                TreeType::Leaf => {
+            let new_tree: Option<Tree> = match tree_type {
+                TreeType::Leaf => extract_tree::<Leaf>(arg).map(|leaf| Tree { leaf: Some(leaf), node: None }),
+                TreeType::Node => extract_tree::<Node>(arg).map(|node| Tree { leaf: None, node: Some(node) }),
+                TreeType::Tree => extract_tree::<Tree>(arg),
+            };
 
-                    let new_tree: Option<Leaf> = extract_tree(arg);
-
-                    if let Some(new_tree) = new_tree {
-                        let add_tree = Tree { leaf: Some(new_tree), node: None };
-
-                        if let Some(tree) = trees {
-                            return Self {
-                                left: Some(Box::new(tree)),
-                                right: Some(Box::new(add_tree)),
-                            };
-                        } else {
-                            trees = Some(add_tree);
-                        }
- 
-                    }
-                }
-                TreeType::Node => {
-                    if let Some(new_tree) = extract_tree(arg) {
-                        let new_add = Tree { node: Some(new_tree), leaf: None };
-
-                        if let Some(tree) = trees {
-                            return Self {
-                                left: Some(Box::new(tree)),
-                                right: Some(Box::new(new_add)),
-                            };
-                        } else {
-                            trees = Some(new_add);
-                        }
-                    }
-                }
-                TreeType::Tree => {
-                    if let Some(new_tree) = extract_tree(arg) {
-
-                        if let Some(tree) = trees {
-                            return Self {
-                                left: Some(Box::new(tree)),
-                                right: Some(Box::new(new_tree)),
-                            };
-                        } else {
-                            trees = Some(new_tree);
-                        }
-                    }
+            if let Some(new_tree) = new_tree {
+                if let Some(tree) = trees {
+                    return Self {
+                        left: Some(Box::new(tree)),
+                        right: Some(Box::new(new_tree)),
+                    };
+                } else {
+                    trees = Some(new_tree);
                 }
             }
         }

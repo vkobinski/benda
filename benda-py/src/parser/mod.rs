@@ -3,7 +3,7 @@ use core::panic;
 use std::vec;
 
 use bend::{
-    fun::{ Adt, Book, CtrField, Name, Op, STRINGS },
+    fun::{ Adt, Book, CtrField, Definition, Name, Op, Rule, STRINGS },
     imp::{ self, AssignPattern, Expr, MatchArm, Stmt },
 };
 use indexmap::IndexMap;
@@ -780,6 +780,8 @@ impl Parser {
             let fun_def = def.clone().to_fun(false).unwrap();
             self.book.defs.insert(fun_def.name.clone(), fun_def.clone());
         }
+
+
 
         let main_def = self.parse_main(fun, py_args).unwrap();
 
