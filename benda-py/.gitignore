@@ -1,7 +1,4 @@
-main.bend
-test.py
-tree.py
-
+/tmp/
 /target
 
 # Byte-compiled / optimized / DLL files
