@@ -2,7 +2,7 @@ use std::ops::{ Add, Sub };
 
 use pyo3::{ pyclass, pymethods };
 
-#[pyclass(module = "benda_py")]
+#[pyclass(module = "benda")]
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct u24(u32);

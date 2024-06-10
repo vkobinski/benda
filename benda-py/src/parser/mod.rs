@@ -51,8 +51,7 @@ impl Parser {
     pub fn new(statements: Vec<rStmt<TextRange>>, _index: usize) -> Self {
         Self {
             statements,
-            //book: bend::fun::Book::builtins(),
-            book: Book::default(),
+            book: bend::fun::Book::builtins(),
             definitions: vec![],
             ctx: None,
         }
@@ -128,7 +127,13 @@ impl Parser {
                         )
                     }
                     located::Constant::Tuple(_) => todo!(),
-                    located::Constant::Float(_) => todo!(),
+                    located::Constant::Float(val) => {
+                        Some(
+                            FromExpr::Expr(imp::Expr::Num {
+                                val: bend::fun::Num::F24(val.to_f32().unwrap()),
+                            })
+                        )
+                    }
                     located::Constant::Complex { real: _, imag: _ } => todo!(),
                     located::Constant::Ellipsis => todo!(),
                 }

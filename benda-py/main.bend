@@ -1,13 +1,16 @@
-type Leaf = u24
+type Leaf = (u24 value)
 type Node = (Tree left) | (Tree right)
 
 type Tree = Leaf | Node
 
-def gen_tree(depth, n):
-  if depth == 0:
-    return Leaf/u24(n)
-  else:
-    return Node(gen_tree(depth - 1, n - 1), gen_tree(depth - 1, n + 1))
+
+def gen_tree(tree):
+  match tree:
+    case Leaf:
+      return tree.value
+    case Node:
+      return tree.left + tree.right
+
 
 def main:
-  return gen_tree(10,2)
+  return gen_tree(10, 2)

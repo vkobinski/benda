@@ -1,8 +1,9 @@
 use num_traits::ToPrimitive;
 use parser::Parser;
-use pyo3::{ prelude::*, types::{ PyDict, PyFunction, PyString, PyTuple } };
+use pyo3::{ prelude::*, types::{ PyDict, PyFunction, PyString, PyTuple, PyType } };
 use rustpython_parser::{ parse, Mode };
-use types::u24::u24;
+use types::{ tree::{ Leaf, Node, TreeType }, u24::u24 };
+use types::tree::Tree;
 mod types;
 mod parser;
 mod benda_ffi;
@@ -32,8 +33,24 @@ impl PyBjit {
         args: &Bound<'_, PyTuple>,
         kwargs: Option<&Bound<'_, PyDict>>
     ) -> PyResult<Py<PyAny>> {
-        println!("kwargs: {:?}", kwargs);
-        println!("args: {:?}", args);
+        for arg in args.downcast::<PyTuple>().unwrap().iter() {
+
+            let t_type = arg.get_type();
+            let name = t_type.name().unwrap();
+
+            let arg_type = TreeType::from(name.to_string());
+
+            println!("type {:?}", arg_type);
+
+            if let TreeType::Node = arg_type {
+
+                let node = arg.downcast::<Node>().unwrap();
+
+                let a = node.extract::<Node>().unwrap();
+                println!("{:?}", a);
+
+            }
+        }
 
         todo!()
     }
@@ -71,7 +88,7 @@ fn bjit(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
         arg_list.push(arg.to_string());
     }
 
-    println!("Mod: {:?}", module);
+    //println!("Mod: {:?}", module);
 
     let mut val: Option<Bound<PyString>> = None;
 
@@ -109,5 +126,8 @@ fn benda(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(switch, m)?)?;
     m.add_class::<PyBjit>()?;
     m.add_class::<u24>()?;
+    m.add_class::<Tree>()?;
+    m.add_class::<Node>()?;
+    m.add_class::<Leaf>()?;
     Ok(())
 }
