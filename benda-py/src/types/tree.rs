@@ -1,10 +1,16 @@
 use core::panic;
 use std::vec;
 
-use bend::{ fun, imp };
-use pyo3::{ conversion::FromPyObjectBound, ffi::newfunc, pyclass, pymethods, types::{ PyAnyMethods, PyTuple, PyTypeMethods }, Bound, FromPyObject, PyAny, PyTypeCheck };
+use bend::{fun, imp};
+use pyo3::{
+    pyclass, pymethods,
+    types::{PyAnyMethods, PyTuple, PyTypeMethods},
+    Bound,
+};
 
-use super::{ u24::u24, BendType };
+use crate::types::extract_inner;
+
+use super::{u24::u24, BendType};
 
 #[derive(Clone, Debug)]
 #[pyclass(module = "benda", name = "Leaf")]
@@ -14,7 +20,9 @@ pub struct Leaf {
 
 impl BendType for Leaf {
     fn to_bend(&self) -> imp::Expr {
-        imp::Expr::Num { val: fun::Num::U24(self.value.get()) }
+        imp::Expr::Num {
+            val: fun::Num::U24(self.value.get()),
+        }
     }
 }
 
@@ -35,15 +43,6 @@ pub struct Node {
     pub right: Option<Box<Tree>>,
 }
 
-fn extract_tree<'py, T: PyTypeCheck + FromPyObject<'py>>(arg: Bound<'py, PyAny>) -> Option<T> {
-    let tree = arg.downcast::<T>();
-    if let Ok(tree) = tree {
-        let tree = <T as FromPyObject>::extract_bound(tree.as_any());
-        return Some(tree.unwrap());
-    }
-    None
-}
-
 #[pymethods]
 impl Node {
     #[new]
@@ -58,9 +57,15 @@ impl Node {
             let tree_type = TreeType::from(name.to_string());
 
             let new_tree: Option<Tree> = match tree_type {
-                TreeType::Leaf => extract_tree::<Leaf>(arg).map(|leaf| Tree { leaf: Some(leaf), node: None }),
-                TreeType::Node => extract_tree::<Node>(arg).map(|node| Tree { leaf: None, node: Some(node) }),
-                TreeType::Tree => extract_tree::<Tree>(arg),
+                TreeType::Leaf => extract_inner::<Leaf>(arg).map(|leaf| Tree {
+                    leaf: Some(leaf),
+                    node: None,
+                }),
+                TreeType::Node => extract_inner::<Node>(arg).map(|node| Tree {
+                    leaf: None,
+                    node: Some(node),
+                }),
+                TreeType::Tree => extract_inner::<Tree>(arg),
             };
 
             if let Some(new_tree) = new_tree {
@@ -91,7 +96,11 @@ impl BendType for Node {
             trees.push(right.to_bend());
         }
 
-        imp::Expr::Ctr { name: fun::Name::new("Tree/Node"), args: trees, kwargs: vec![] }
+        imp::Expr::Ctr {
+            name: fun::Name::new("Tree/Node"),
+            args: trees,
+            kwargs: vec![],
+        }
     }
 }
 
@@ -126,9 +135,9 @@ pub enum TreeType {
 impl From<String> for TreeType {
     fn from(value: String) -> Self {
         match value.as_str() {
-            "benda.Leaf" => { TreeType::Leaf }
-            "benda.Node" => { TreeType::Node }
-            "benda.Tree" => { TreeType::Tree }
+            "benda.Leaf" => TreeType::Leaf,
+            "benda.Node" => TreeType::Node,
+            "benda.Tree" => TreeType::Tree,
             _ => panic!("Tree __new__ must receive either Leaf or Node"),
         }
     }
@@ -146,10 +155,10 @@ impl Tree {
 
             match tree_type {
                 TreeType::Leaf => {
-                    let leaf = arg.downcast::<Leaf>();
-                    if let Ok(leaf) = leaf {
+                    let leaf: Option<Leaf> = extract_inner(arg);
+                    if let Some(leaf) = leaf {
                         return Self {
-                            leaf: Some(leaf.extract().unwrap()),
+                            leaf: Some(leaf),
                             node: None,
                         };
                     }

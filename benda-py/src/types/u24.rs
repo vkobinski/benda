@@ -1,11 +1,22 @@
-use std::ops::{ Add, Sub };
+use std::ops::{Add, Sub};
 
-use pyo3::{ pyclass, pymethods };
+use bend::imp;
+use pyo3::{pyclass, pymethods};
+
+use super::BendType;
 
 #[pyclass(module = "benda")]
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct u24(u32);
+
+impl BendType for u24 {
+    fn to_bend(&self) -> bend::imp::Expr {
+        imp::Expr::Num {
+            val: bend::fun::Num::U24(self.0),
+        }
+    }
+}
 
 impl u24 {
     const MAX: u32 = 0xffffff;
