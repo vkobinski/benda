@@ -7,7 +7,7 @@ use pyo3::{
 };
 use rustpython_parser::{parse, Mode};
 use types::{
-    extract_inner,
+    extract_inner, extract_type,
     tree::{Leaf, Node, TreeType},
     u24::u24,
     BendType,
@@ -76,14 +76,10 @@ impl PyBjit {
         let mut parsed_types: Vec<(String, imp::Expr)> = vec![];
 
         for (index, arg) in args.downcast::<PyTuple>().unwrap().iter().enumerate() {
-            let t_type = arg.get_type();
-            let name = arg.getattr("__name__");
-            let name = t_type.name().unwrap();
-
-            let t_type = BuiltinType::from(name.to_string());
-
-            let new_arg = extract_inner::<BuiltinType>(arg).unwrap().to_bend();
-            parsed_types.push((arg_list.get(index).unwrap().to_string(), arg));
+            parsed_types.push((
+                arg_list.get(index).unwrap().to_string(),
+                extract_type(arg).unwrap(),
+            ));
         }
 
         let code = std::fs::read_to_string(filename.to_string()).unwrap();

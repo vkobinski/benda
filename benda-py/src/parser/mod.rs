@@ -188,6 +188,8 @@ impl Parser {
                         }
                     }
 
+                    println!("CTR FIELD {:?}", nam);
+
                     if let Some(val) = self.find_in_ctrs(nam) {
                         return Some(FromExpr::Expr(imp::Expr::Ctr {
                             name: val.clone(),
@@ -255,9 +257,8 @@ impl Parser {
                     nam: nam_r.clone(),
                     rec: false,
                 });
+                return Some(FromExpr::CtrField(fields));
             }
-
-            return Some(FromExpr::CtrField(fields));
         }
 
         if let (FromExpr::Expr(left), FromExpr::Expr(right)) = (left, right) {
@@ -532,7 +533,7 @@ impl Parser {
                         }));
                     }
 
-                    println!("Expr type: {:?}", term);
+                    println!("{:?}", term);
 
                     todo!()
                 }
@@ -663,16 +664,20 @@ impl Parser {
                                     });
                                 }
 
+                                let mut new_args: Vec<Expr> = vec![];
+
+                                for arg in self.fun_args.clone() {
+                                    new_args.push(Expr::Var {
+                                        nam: Name::new(arg.0),
+                                    })
+                                }
+
                                 let first = Stmt::Return {
                                     term: Box::new(Expr::Call {
                                         fun: Box::new(imp::Expr::Var {
-                                            nam: Name::new("sum_tree"),
+                                            nam: Name::new(fun_name.to_string()),
                                         }),
-                                        args: vec![Expr::Var {
-                                            nam: Name::new(
-                                                self.fun_args.first().unwrap().0.to_string(),
-                                            ),
-                                        }],
+                                        args: new_args,
                                         kwargs: vec![],
                                     }),
                                 };
