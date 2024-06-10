@@ -3,8 +3,8 @@ use core::panic;
 use std::vec;
 
 use bend::{
-    fun::{self, Adt, Book, CtrField, Definition, Name, Op, Rule, STRINGS},
-    imp::{self, AssignPattern, Expr, MatchArm, Stmt},
+    fun::{self, Adt, Book, CtrField, Name, Op, Rule, STRINGS},
+    imp::{self, Expr, MatchArm, Stmt},
 };
 use indexmap::IndexMap;
 use rustpython_parser::ast::{located, ExprBinOp, StmtAssign, StmtMatch};

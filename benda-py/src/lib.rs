@@ -3,16 +3,15 @@ use num_traits::ToPrimitive;
 use parser::Parser;
 use pyo3::{
     prelude::*,
-    types::{PyDict, PyFunction, PyString, PyTuple, PyType},
+    types::{PyDict, PyFunction, PyString, PyTuple},
 };
 use rustpython_parser::{parse, Mode};
+use types::tree::Tree;
 use types::{
-    extract_inner, extract_type,
-    tree::{Leaf, Node, TreeType},
+    extract_type,
+    tree::{Leaf, Node},
     u24::u24,
-    BendType,
 };
-use types::{tree::Tree, BuiltinType};
 mod benda_ffi;
 mod parser;
 mod types;
@@ -33,12 +32,12 @@ impl PyBjit {
     fn __new__(wraps: Py<PyAny>) -> Self {
         PyBjit { wraps }
     }
-    #[pyo3(signature = (*args, **kwargs))]
+    #[pyo3(signature = (*args, **_kwargs))]
     fn __call__(
         &self,
         py: Python<'_>,
         args: &Bound<'_, PyTuple>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        _kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Py<PyAny>> {
         let arg_names_temp: Bound<PyAny>;
 
@@ -145,9 +144,7 @@ fn bjit_test(fun: Bound<PyFunction>, py: Python) -> PyResult<Py<PyAny>> {
         arg_list.push(arg.to_string());
     }
 
-    //println!("Mod: {:?}", module);
-
-    let mut val: Option<Bound<PyString>> = None;
+    let val: Option<Bound<PyString>> = None;
 
     match module {
         rustpython_parser::ast::Mod::Module(mods) => {
