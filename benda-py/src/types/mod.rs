@@ -4,7 +4,7 @@ use bend::{fun::Num, imp};
 
 use pyo3::{
     types::{PyAnyMethods, PyFloat, PyTypeMethods},
-    Bound, FromPyObject, PyAny, PyTypeCheck, ToPyObject,
+    Bound, FromPyObject, PyAny, PyTypeCheck,
 };
 use tree::{Leaf, Node, Tree};
 
@@ -49,7 +49,6 @@ pub fn extract_type(arg: Bound<PyAny>) -> Option<imp::Expr> {
         BuiltinType::Tree => Some(extract_inner::<Tree>(arg).unwrap().to_bend()),
         BuiltinType::Node => Some(extract_inner::<Node>(arg).unwrap().to_bend()),
         BuiltinType::Leaf => Some(extract_inner::<Leaf>(arg).unwrap().to_bend()),
-        _ => panic!(),
     }
 }
 
@@ -70,7 +69,7 @@ impl From<String> for BuiltinType {
             "int" => BuiltinType::I32,
             "benda.u24" => BuiltinType::U24,
             "benda.Node" => BuiltinType::Node,
-            "benda.Leaf" => BuiltinType::Node,
+            "benda.Leaf" => BuiltinType::Leaf,
             "benda.Tree" => BuiltinType::Tree,
             _ => panic!("Could not parse type"),
         }
