@@ -10,7 +10,7 @@ use pyo3::{
 
 use crate::types::extract_inner;
 
-use super::{u24::u24, BendType};
+use super::{u24::u24, BendType, ToBendResult};
 
 #[derive(Clone, Debug)]
 #[pyclass(module = "benda", name = "Leaf")]
@@ -19,7 +19,7 @@ pub struct Leaf {
 }
 
 impl BendType for Leaf {
-    fn to_bend(&self) -> imp::Expr {
+    fn to_bend(&self) -> ToBendResult {
         self.value.to_bend()
     }
 }
@@ -83,22 +83,28 @@ impl Node {
 }
 
 impl BendType for Node {
-    fn to_bend(&self) -> imp::Expr {
+    fn to_bend(&self) -> ToBendResult {
         let mut trees: Vec<imp::Expr> = vec![];
 
         if let Some(left) = &self.left {
-            trees.push(left.to_bend());
+            match left.to_bend() {
+                Ok(val) => trees.push(val),
+                Err(err) => return Err(err),
+            };
         }
 
         if let Some(right) = &self.right {
-            trees.push(right.to_bend());
+            match right.to_bend() {
+                Ok(val) => trees.push(val),
+                Err(err) => return Err(err),
+            };
         }
 
-        imp::Expr::Ctr {
+        Ok(imp::Expr::Ctr {
             name: fun::Name::new("Tree/Node"),
             args: trees,
             kwargs: vec![],
-        }
+        })
     }
 }
 
@@ -110,7 +116,7 @@ pub struct Tree {
 }
 
 impl BendType for Tree {
-    fn to_bend(&self) -> bend::imp::Expr {
+    fn to_bend(&self) -> ToBendResult {
         if let Some(leaf) = &self.leaf {
             return leaf.to_bend();
         }
